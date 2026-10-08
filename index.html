@@ -12774,22 +12774,45 @@ async function join(){try{const q=new URLSearchParams(location.search);if(q.get(
   /* QR carries only the public Supabase browser config in the URL fragment, so a fresh tablet can connect without manual setup. */
   try{const raw=location.hash.startsWith('#mdcloud=')?decodeURIComponent(location.hash.slice(9)):'';if(raw){const cc=JSON.parse(raw);if(/^https:\/\//i.test(cc?.u)&&cc?.k){const merged={...cfg(),url:String(cc.u).replace(/\/$/,''),key:String(cc.k)};localStorage.setItem(CONFIG_KEY,JSON.stringify(merged));}}}catch(e){}
   if(!apiReady()){alert('This shop is not connected to cloud sync yet. Open the main device and configure Cloud Sync first.');armJoinGuard();history.replaceState({},'',location.href.split('?')[0]);return}
-  const accepted=confirm('Join this shop on this device?\nShop: '+sid+'\n\nThis device will use SALES mode with a Device Token.\nGoogle login / Supabase Auth user ID is not required.');
-  armJoinGuard();
-  if(accepted){try{
-    setSalesDeviceAuth();
-    const d=await api('pair_request',{shopId:sid,deviceId:deviceId(),deviceName:deviceName(),role:'sales',authMode:'device_token'});
-    localStorage.setItem(SHOP_KEY,sid);
-    const a=devices();
-    if(!a.some(x=>x.id===deviceId()))a.push({id:deviceId(),name:deviceName(),status:d.status==='approved'?'Approved':'Pending approval',requestId:d.requestId,role:'sales',authMode:'device_token',prefix:d.prefix||'',permissions:Array.isArray(d.permissions)?d.permissions:[]});
-    saveDevices(a);
-    alert(d.status==='approved'?'Device already linked.':'Request sent. The main device must approve this device.');
-    armJoinGuard(1500);
-    pollPair(sid,d.requestId);
-  }catch(e){alert('Pairing failed: '+e.message);armJoinGuard(1500)}}
+  /* Device B must explicitly send a pairing request.  The old flow used a
+     native confirm and could lose the click inside Android WebViews.  Keep the
+     join page on-screen until the request is actually accepted by the cloud. */
+  const oldJoin=document.getElementById('md-join-overlay');
+  if(oldJoin)oldJoin.remove();
+  const overlay=document.createElement('div');
+  overlay.id='md-join-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:2147483647;background:var(--bg,#f5f7fb);display:flex;align-items:center;justify-content:center;padding:18px';
+  overlay.innerHTML='<div style="width:min(430px,100%);background:var(--surface,#fff);color:var(--text,#172033);border:1px solid var(--border,#e3e8f0);border-radius:22px;padding:22px;box-shadow:0 18px 55px rgba(0,0,0,.18);text-align:center"><div style="font-size:28px">📲</div><div style="font-size:20px;font-weight:900;margin-top:8px">Join Device A</div><div style="font-size:11px;color:var(--muted,#7a8495);margin-top:6px;line-height:1.5">Shop: '+esc(sid)+'<br>This Device B will request access from Device A.</div><button id="md-send-request-btn" type="button" style="width:100%;height:48px;margin-top:18px;border:0;border-radius:13px;background:var(--blue,#1677ff);color:#fff;font-size:14px;font-weight:900">📨 SEND REQUEST TO DEVICE A</button><button id="md-cancel-request-btn" type="button" style="width:100%;height:42px;margin-top:8px;border:0;border-radius:13px;background:var(--surface2,#eef2f7);color:var(--text,#172033);font-size:12px;font-weight:800">CANCEL</button><div id="md-join-result" style="min-height:18px;margin-top:12px;font-size:11px;font-weight:800;color:var(--muted,#7a8495)"></div></div>';
+  document.body.appendChild(overlay);
+  const result=overlay.querySelector('#md-join-result');
+  const send=overlay.querySelector('#md-send-request-btn');
+  const cancel=overlay.querySelector('#md-cancel-request-btn');
+  let sent=false;
+  cancel.onclick=()=>{overlay.remove();history.replaceState({},'',location.href.split('?')[0]);};
+  send.onclick=async()=>{
+    if(sent)return;
+    sent=true; send.disabled=true; send.textContent='⏳ SENDING REQUEST...';
+    try{
+      setSalesDeviceAuth();
+      const did=deviceId();
+      const d=await api('pair_request',{shopId:sid,deviceId:did,deviceName:deviceName(),role:'sales',authMode:'device_token'});
+      localStorage.setItem(SHOP_KEY,sid);
+      const a=devices();
+      const row={id:did,name:deviceName(),status:d.status==='approved'?'Approved':'Pending approval',requestId:d.requestId,role:'sales',authMode:'device_token',prefix:d.prefix||'',permissions:Array.isArray(d.permissions)?d.permissions:[]};
+      const ix=a.findIndex(x=>x.id===did); if(ix>=0)a[ix]={...a[ix],...row}; else a.push(row);
+      saveDevices(a);
+      if(d.status==='approved'){result.textContent='✅ Device already linked.';result.style.color='#168a45';setSalesDeviceAuth();if(d.deviceToken)localStorage.setItem(TOKEN_KEY,d.deviceToken);await pull();setTimeout(()=>{overlay.remove();history.replaceState({},'',location.href.split('?')[0]);render()},700);return;}
+      result.textContent='✅ Request sent to Device A. Waiting for approval...';result.style.color='#168a45';
+      send.textContent='WAITING FOR DEVICE A APPROVAL';
+      pollPair(sid,d.requestId);
+    }catch(e){
+      sent=false;send.disabled=false;send.textContent='📨 SEND REQUEST TO DEVICE A';result.textContent='❌ Request failed: '+String(e.message||e);result.style.color='#d33b3b';
+    }
+  };
+  armJoinGuard(1500);
   history.replaceState({},'',location.href.split('?')[0]);
 },300)}catch(e){console.error('Join flow error',e)}}
-async function pollPair(sid,rid){for(let i=0;i<120;i++){await new Promise(r=>setTimeout(r,3000));try{const d=await api('pair_status',{shopId:sid,deviceId:deviceId(),requestId:rid});if(d.status==='approved'&&d.deviceToken){setSalesDeviceAuth();localStorage.setItem(TOKEN_KEY,d.deviceToken);status('Device linked ✓ • SALES / Device Token',true);await pull();render();return}if(d.status==='denied'){status('Pairing denied',false);return}}catch(e){}}}
+async function pollPair(sid,rid){for(let i=0;i<120;i++){await new Promise(r=>setTimeout(r,3000));try{const d=await api('pair_status',{shopId:sid,deviceId:deviceId(),requestId:rid});const ov=document.getElementById('md-join-overlay'),res=ov?.querySelector('#md-join-result');if(d.status==='approved'&&d.deviceToken){setSalesDeviceAuth();localStorage.setItem(TOKEN_KEY,d.deviceToken);status('Device linked ✓ • SALES / Device Token',true);if(res){res.textContent='✅ Device A approved this device.';res.style.color='#168a45'}await pull();render();setTimeout(()=>{if(ov)ov.remove();history.replaceState({},'',location.href.split('?')[0])},700);return}if(d.status==='denied'){if(res){res.textContent='❌ Device A denied the request.';res.style.color='#d33b3b'}status('Pairing denied',false);return}}catch(e){const ov=document.getElementById('md-join-overlay'),res=ov?.querySelector('#md-join-result');if(res)res.textContent='Waiting for Device A...'}}}
 window.openMultiDeviceWindow=async function(){const o=$('multi-device-overlay');if(!o)return;document.body.classList.remove('home-mode');o.classList.add('open');o.setAttribute('aria-hidden','false');document.body.classList.add('modal-front-open');renderConfig();render();renderQr();await ensureShop();await refreshOwnerData();await ownerRefresh();await pushPending();await pull();render()};
 window.closeMultiDeviceWindow=function(){const o=$('multi-device-overlay');if(!o)return;o.classList.remove('open');o.setAttribute('aria-hidden','true');document.body.classList.remove('modal-front-open');if(window.saGoHome)window.saGoHome()};
 window.addEventListener('online',()=>{pushPending();pull()});window.addEventListener('load',()=>{if(isSalesDevice()&&hasDeviceToken())status('SALES mode • Device Token linked',true);join();setTimeout(()=>{if(apiReady()){pushPending();pull()}},1200);setInterval(()=>{if(apiReady()){pushPending();pull();ownerRefresh()}},15000)});
