@@ -12754,7 +12754,41 @@ window.multiDeviceApplyCloudSetup=async function(){
     if(result){result.textContent='Connection failed: '+e.message;result.className='md-setup-result error'}
   }
 };
-async function join(){try{const q=new URLSearchParams(location.search);if(q.get('multi_device')!=='join')return;const sid=q.get('shop')||'';setTimeout(async()=>{if(!sid){history.replaceState({},'',location.href.split('?')[0]);return}/* QR carries only the public Supabase browser config in the URL fragment, so a fresh tablet can connect without manual setup. */try{const raw=location.hash.startsWith('#mdcloud=')?decodeURIComponent(location.hash.slice(9)):'';if(raw){const cc=JSON.parse(raw);if(/^https:\/\//i.test(cc?.u)&&cc?.k){const merged={...cfg(),url:String(cc.u).replace(/\/$/,''),key:String(cc.k)};localStorage.setItem(CONFIG_KEY,JSON.stringify(merged));}}}catch(e){}if(!apiReady()){alert('This shop is not connected to cloud sync yet. Open the main device and configure Cloud Sync first.');history.replaceState({},'',location.href.split('?')[0]);return}if(confirm('Join this shop on this device?\nShop: '+sid+'\n\nThis device will use SALES mode with a Device Token.\nGoogle login / Supabase Auth user ID is not required.')){try{setSalesDeviceAuth();const d=await api('pair_request',{shopId:sid,deviceId:deviceId(),deviceName:deviceName(),role:'sales',authMode:'device_token'});localStorage.setItem(SHOP_KEY,sid);const a=devices();if(!a.some(x=>x.id===deviceId()))a.push({id:deviceId(),name:deviceName(),status:d.status==='approved'?'Approved':'Pending approval',requestId:d.requestId,role:'sales',authMode:'device_token',prefix:d.prefix||'',permissions:Array.isArray(d.permissions)?d.permissions:[]});saveDevices(a);alert(d.status==='approved'?'Device already linked.':'Request sent. The main device must approve this device.');pollPair(sid,d.requestId)}catch(e){alert('Pairing failed: '+e.message)}}history.replaceState({},'',location.href.split('?')[0])},300)}catch(e){}}
+async function join(){try{const q=new URLSearchParams(location.search);if(q.get('multi_device')!=='join')return;const sid=q.get('shop')||'';setTimeout(async()=>{
+  // QR-join must own the page until pairing is complete. This prevents the
+  // first tap after the native confirm/alert from falling through to the
+  // Home Screen Calculator card on Android.
+  let joinGuardUntil=0;
+  const armJoinGuard=(ms=1200)=>{
+    joinGuardUntil=Date.now()+ms;
+    const blocker=(e)=>{
+      if(Date.now()>joinGuardUntil){document.removeEventListener('pointerdown',blocker,true);document.removeEventListener('click',blocker,true);return}
+      if(e.target && e.target.closest && e.target.closest('#md-join-overlay')) return;
+      e.preventDefault();e.stopImmediatePropagation();
+    };
+    document.addEventListener('pointerdown',blocker,true);
+    document.addEventListener('click',blocker,true);
+    setTimeout(()=>{document.removeEventListener('pointerdown',blocker,true);document.removeEventListener('click',blocker,true)},ms+100);
+  };
+  if(!sid){history.replaceState({},'',location.href.split('?')[0]);return}
+  /* QR carries only the public Supabase browser config in the URL fragment, so a fresh tablet can connect without manual setup. */
+  try{const raw=location.hash.startsWith('#mdcloud=')?decodeURIComponent(location.hash.slice(9)):'';if(raw){const cc=JSON.parse(raw);if(/^https:\/\//i.test(cc?.u)&&cc?.k){const merged={...cfg(),url:String(cc.u).replace(/\/$/,''),key:String(cc.k)};localStorage.setItem(CONFIG_KEY,JSON.stringify(merged));}}}catch(e){}
+  if(!apiReady()){alert('This shop is not connected to cloud sync yet. Open the main device and configure Cloud Sync first.');armJoinGuard();history.replaceState({},'',location.href.split('?')[0]);return}
+  const accepted=confirm('Join this shop on this device?\nShop: '+sid+'\n\nThis device will use SALES mode with a Device Token.\nGoogle login / Supabase Auth user ID is not required.');
+  armJoinGuard();
+  if(accepted){try{
+    setSalesDeviceAuth();
+    const d=await api('pair_request',{shopId:sid,deviceId:deviceId(),deviceName:deviceName(),role:'sales',authMode:'device_token'});
+    localStorage.setItem(SHOP_KEY,sid);
+    const a=devices();
+    if(!a.some(x=>x.id===deviceId()))a.push({id:deviceId(),name:deviceName(),status:d.status==='approved'?'Approved':'Pending approval',requestId:d.requestId,role:'sales',authMode:'device_token',prefix:d.prefix||'',permissions:Array.isArray(d.permissions)?d.permissions:[]});
+    saveDevices(a);
+    alert(d.status==='approved'?'Device already linked.':'Request sent. The main device must approve this device.');
+    armJoinGuard(1500);
+    pollPair(sid,d.requestId);
+  }catch(e){alert('Pairing failed: '+e.message);armJoinGuard(1500)}}
+  history.replaceState({},'',location.href.split('?')[0]);
+},300)}catch(e){console.error('Join flow error',e)}}
 async function pollPair(sid,rid){for(let i=0;i<120;i++){await new Promise(r=>setTimeout(r,3000));try{const d=await api('pair_status',{shopId:sid,deviceId:deviceId(),requestId:rid});if(d.status==='approved'&&d.deviceToken){setSalesDeviceAuth();localStorage.setItem(TOKEN_KEY,d.deviceToken);status('Device linked ✓ • SALES / Device Token',true);await pull();render();return}if(d.status==='denied'){status('Pairing denied',false);return}}catch(e){}}}
 window.openMultiDeviceWindow=async function(){const o=$('multi-device-overlay');if(!o)return;document.body.classList.remove('home-mode');o.classList.add('open');o.setAttribute('aria-hidden','false');document.body.classList.add('modal-front-open');renderConfig();render();renderQr();await ensureShop();await refreshOwnerData();await ownerRefresh();await pushPending();await pull();render()};
 window.closeMultiDeviceWindow=function(){const o=$('multi-device-overlay');if(!o)return;o.classList.remove('open');o.setAttribute('aria-hidden','true');document.body.classList.remove('modal-front-open');if(window.saGoHome)window.saGoHome()};
