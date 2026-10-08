@@ -12572,8 +12572,6 @@ function isSalesDevice(){return localStorage.getItem(DEVICE_ROLE_KEY)==='sales'&
 function hasDeviceToken(){return !!localStorage.getItem(TOKEN_KEY)}
 function salesAuthLabel(){return isSalesDevice()&&hasDeviceToken()?'SALES • Device Token':'Not linked'}
 function devices(){try{const a=JSON.parse(localStorage.getItem(DEV_KEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}}
-/* Multi-Device only: any waiting/pending state is never a linked/approved device. */
-function isPendingDevice(d){const s=String(d?.status||'').trim().toLowerCase();return s==='pending'||s==='pending approval'||s==='pending_approval'||s==='waiting'||s==='requested'||s==='request pending'||s==='join pending'}
 function saveDevices(a){localStorage.setItem(DEV_KEY,JSON.stringify(a.slice(-50)))}
 function queue(){try{const a=JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}}
 function setQueue(a){localStorage.setItem(QUEUE_KEY,JSON.stringify(a.slice(-500)))}
@@ -12582,7 +12580,7 @@ async function api(action,payload={}){const c=cfg();if(!apiReady())throw new Err
 function status(t,ok){const s=$('multi-device-shop-status');if(s)s.textContent=t;const dot=s?.previousElementSibling;if(dot)dot.style.opacity=ok===false?.45:1}
 function renderConfig(){const c=cfg();if($('md-api-url'))$('md-api-url').value=c.url;if($('md-api-key'))$('md-api-key').value=c.key;if($('md-join-url'))$('md-join-url').value=c.joinUrl||location.href.split('#')[0].split('?')[0]}
 function link(){const c=cfg();const base=(c.joinUrl||location.href.split('#')[0].split('?')[0]).replace(/\/$/,'');let out=base+'?multi_device=join&shop='+encodeURIComponent(shop());if(/^https:\/\//i.test(c.url)&&c.key){try{out+='#mdcloud='+encodeURIComponent(JSON.stringify({u:c.url,k:c.key}))}catch(e){}}return out}
-function render(){const b=$('multi-device-list');if(!b)return;const a=devices();const linked=a.map((d,i)=>({d,i})).filter(x=>!isPendingDevice(x.d));b.innerHTML=linked.length?linked.map(x=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📱 '+esc(x.d.name||'Linked Device')+'</div><div class="md-device-meta">'+esc(x.d.status||'Linked')+' • '+esc(x.d.id||'')+'</div></div><button class="md-device-remove" onclick="multiDeviceRemove('+x.i+')">REMOVE</button></div>').join(''):'<div style="padding:16px;text-align:center;color:var(--muted);font-size:10px">Main device: '+esc(deviceId())+'<br>No approved linked devices yet.</div>';const auth=$('md-sales-auth-status');if(auth){auth.textContent=isSalesDevice()&&hasDeviceToken()?'🔐 SALES MODE • Device Token linked • No Google/Supabase user login required':'🔐 ADMIN / UNLINKED MODE';}}
+function render(){const b=$('multi-device-list');if(!b)return;const a=devices();b.innerHTML=a.length?a.map((d,i)=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">'+esc(d.status||'Linked')+' • '+esc(d.id||'')+'</div></div><button class="md-device-remove" onclick="multiDeviceRemove('+i+')">REMOVE</button></div>').join(''):'<div style="padding:16px;text-align:center;color:var(--muted);font-size:10px">Main device: '+esc(deviceId())+'<br>No approved linked devices yet.</div>';const auth=$('md-sales-auth-status');if(auth){auth.textContent=isSalesDevice()&&hasDeviceToken()?'🔐 SALES MODE • Device Token linked • No Google/Supabase user login required':'🔐 ADMIN / UNLINKED MODE';}}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function renderQr(){const b=$('multi-device-qr');if(!b)return;b.innerHTML='';const l=link();$('multi-device-link').textContent=l;try{if(typeof QRCode==='function'){new QRCode(b,{text:l,width:190,height:190,correctLevel:QRCode.CorrectLevel.M});status(apiReady()?'Cloud QR ready':'QR ready • configure cloud below',apiReady())}else status('QR library unavailable',false)}catch(e){status('Could not generate QR',false)}}
 async function ensureShop(){if(!apiReady()){status('Local mode • cloud not configured',false);return false}const owner=localStorage.getItem(OWNER_KEY);if(owner)return true;try{const d=await api('register_shop',{shopId:shop(),deviceId:deviceId(),deviceName:deviceName()});if(d.created&&d.ownerToken){localStorage.setItem(OWNER_KEY,d.ownerToken);status('Cloud shop created ✓',true);return true}status('Cloud shop exists • owner token is missing',false);return false}catch(e){status('Cloud setup: '+e.message,false);return false}}
@@ -12625,10 +12623,10 @@ window.multiDeviceOwnerRecovery=async function(){
 };
 window.multiDeviceSaveConfig=async function(){saveCfg();renderQr();if(await ensureShop()){await refreshOwnerData();await pushPending();await pull()}else render()};
 window.multiDeviceAuthStatus=function(){return {role:role(),authMode:owner()?'owner_token':(hasDeviceToken()?'device_token':'none'),deviceId:deviceId(),deviceTokenLinked:hasDeviceToken(),ownerLinked:owner()};};
-async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices().filter(x=>!isPendingDevice(x));for(const r of d.requests||[]){a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority()}catch(e){}}
+async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old){old.id=r.device_id;old.name=r.device_name;old.status='Pending approval';}else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority()}catch(e){}}
 window.multiDeviceApprove=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return alert('Owner token is not available on this device.');try{await api('approve_request',{shopId:shop(),ownerToken:owner,requestId,role:'sales'});status('Device approved ✓ • SALES uses Device Token only',true);await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority();}catch(e){alert(e.message)}};
 window.multiDeviceDeny=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{await api('deny_request',{shopId:shop(),ownerToken:owner,requestId});await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority()}catch(e){alert(e.message)}};
-async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices().filter(x=>!isPendingDevice(x));for(const r of d.requests||[]){a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){status('Owner check failed',false)}}
+async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old)old.status='Pending approval';else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){status('Owner check failed',false)}}
 const SETUP_SQL = `create table if not exists public.pos_sync_shops(id uuid primary key default gen_random_uuid(),shop_id text not null unique,owner_token_hash text not null,owner_device_id text not null,owner_device_name text not null default 'Main Device',created_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_devices(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',device_token_hash text not null,permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',status text not null default 'approved' check(status in('approved','revoked')),approved_at timestamptz,last_seen_at timestamptz,created_at timestamptz not null default now(),unique(shop_id,device_id),unique(device_token_hash));\ncreate table if not exists public.pos_sync_pair_requests(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',status text not null default 'pending' check(status in('pending','approved','denied')),permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',device_token text,created_at timestamptz not null default now(),updated_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_events(seq bigint generated always as identity primary key,shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,event_id text not null,device_id text not null,event_type text not null,entity_id text not null,payload jsonb not null default '{}'::jsonb,client_time timestamptz,created_at timestamptz not null default now(),unique(shop_id,event_id));\ncreate index if not exists pos_sync_events_shop_seq_idx on public.pos_sync_events(shop_id,seq);\ncreate index if not exists pos_sync_pair_requests_pending_idx on public.pos_sync_pair_requests(shop_id,status,created_at);\nalter table public.pos_sync_shops enable row level security; alter table public.pos_sync_devices enable row level security; alter table public.pos_sync_pair_requests enable row level security; alter table public.pos_sync_events enable row level security;\nrevoke all on public.pos_sync_shops from anon,authenticated; revoke all on public.pos_sync_devices from anon,authenticated; revoke all on public.pos_sync_pair_requests from anon,authenticated; revoke all on public.pos_sync_events from anon,authenticated;
 create extension if not exists pgcrypto;
 alter table public.pos_sync_shops add column if not exists owner_last_seen_at timestamptz;
@@ -12866,7 +12864,7 @@ function renderPendingAuthority(){
  const box=$('md-auth-pending');if(!box)return;
  if(!isOwner()){box.innerHTML='';return}
  const list=read('pos_multi_device_local_v2',[]);
- const pending=list.filter(d=>d&&isPendingDevice(d));
+ const pending=list.filter(d=>d&&String(d.status||'').toLowerCase()==='pending approval');
  box.innerHTML=pending.map(d=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(d.id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(d.requestId||d.id||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(d.requestId||d.id||'')+'\')">DENY</button></div></div>').join('')||'<div class="md-auth-note">No pending device requests.</div>';
 }
 function renderAuthority(){
@@ -12888,7 +12886,7 @@ function renderAuthority(){
 }
 function renderDevicePermissionCards(){
  const box=$('md-auth-device-list');if(!box)return;if(!isOwner()){box.innerHTML='';return}
- const list=read('pos_multi_device_local_v2',[]);const real=list.filter(d=>d&&!isPendingDevice(d));
+ const list=read('pos_multi_device_local_v2',[]);const real=list.filter(d=>d&&d.status&&String(d.status).toLowerCase()!=='pending approval');
  box.innerHTML=real.map((d,i)=>{const pp=Array.isArray(d.permissions)?d.permissions:[];return '<div class="md-device-perm-card"><div class="md-device-perm-head"><div><div class="md-device-perm-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-perm-meta">'+esc(d.id||'')+' • '+esc(d.status||'Linked')+'</div></div><span class="md-auth-badge">SALES</span></div><div class="md-perm-list">'+PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" data-dev-perm="'+i+'" data-perm="'+x[0]+'" '+(pp.includes(x[0])?'checked':'')+'> '+x[1]+'</label>').join('')+'</div><div class="md-perm-actions"><button type="button" onclick="window.mdSaveDevicePermissions('+i+')">SAVE PERMISSIONS</button><button type="button" class="secondary" onclick="window.mdRevokeDevice('+i+')">REVOKE</button></div></div>'}).join('')||'<div class="md-auth-note" style="margin-top:8px">Approve a device first. Its window permissions will appear here.</div>';
 }
 window.mdSaveDevicePermissions=async function(index){
@@ -13050,45 +13048,6 @@ window.openMultiDeviceWindow=async function(){const r=oldRender?await oldRender.
  const oldTrigger=window.posCloudSync?.trigger;if(oldTrigger&&!oldTrigger.__mdServerWrapped){const w=async function(){await tick(false);try{return await oldTrigger.apply(this,arguments)}finally{await tick(true)}};w.__mdServerWrapped=true;if(window.posCloudSync)window.posCloudSync.trigger=w;}
 })();
 </script>
-<!-- DEVICE A/B APPROVAL SYNC PATCH ONLY: keeps pending APPROVE / DENY buttons in sync with cloud. -->
-<script id="multi-device-approval-sync-patch">
-(function(){'use strict';
- const OWNER_KEY='pos_multi_device_owner_token_v1',SHOP_KEY='pos_multi_device_shop_id_v1',DEV_KEY='pos_multi_device_local_v2';
- const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const read=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?f:v}catch(e){return f}};
- const write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
- function render(rows){
-   const box=document.getElementById('md-auth-pending');
-   if(!box)return;
-   const a=Array.isArray(rows)?rows:[];
-   box.innerHTML=a.map(r=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name||r.name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(r.device_id||r.id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(r.id||r.requestId||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(r.id||r.requestId||'')+'\')">DENY</button></div></div>').join('')||'<div class="md-auth-note">No pending device requests.</div>';
- }
- async function sync(){
-   const owner=localStorage.getItem(OWNER_KEY);
-   const box=document.getElementById('md-auth-pending');
-   if(!owner||!box||!window.__mdApi)return;
-   try{
-     const d=await window.__mdApi('pending_requests',{shopId:localStorage.getItem(SHOP_KEY)||'',ownerToken:owner});
-     const rows=Array.isArray(d?.requests)?d.requests:[];
-     const old=read(DEV_KEY,[]).filter(x=>x&&String(x.status||'').toLowerCase()!=='pending approval');
-     rows.forEach(r=>old.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id}));
-     write(DEV_KEY,old);
-     render(rows);
-   }catch(e){
-     /* Keep existing UI untouched when cloud is unavailable. */
-   }
- }
- window.__mdSyncApprovalButtons=sync;
- window.addEventListener('load',()=>{
-   setTimeout(sync,1200);
-   setInterval(()=>{
-     const o=document.getElementById('multi-device-overlay');
-     if(o?.classList.contains('open'))sync();
-   },3000);
- });
-})();
-</script>
-
 </body>
 </html>
 
@@ -13126,7 +13085,7 @@ function renderFallback(){
   const pending=$('md-auth-pending');
   if(pending && !pending.querySelector('button')){
     const list=read('pos_multi_device_local_v2',[]);
-    const rows=Array.isArray(list)?list.filter(d=>d&&isPendingDevice(d)):[];
+    const rows=Array.isArray(list)?list.filter(d=>d&&String(d.status||'').toLowerCase()==='pending approval'):[];
     pending.innerHTML=rows.length ? rows.map(d=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(d.id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(d.requestId||d.id||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(d.requestId||d.id||'')+'\')">DENY</button></div></div>').join('') : '<div class="md-auth-note">No pending device requests.</div>';
   }
   const deviceBox=$('md-auth-device-list');
