@@ -13175,5 +13175,91 @@ if(oldOpen&&!oldOpen.__mdAuthorityRenderSafety){
 window.addEventListener('load',()=>{setTimeout(run,1000);setTimeout(run,1800)});
 })();
 </script>
+
+<!-- MULTI-DEVICE FINAL AUTHORITY / LIVE STATUS FIX v2 -->
+<style id="md-final-authority-fix-css">
+#md-final-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+.md-final-stat{border:1px solid var(--border);border-radius:10px;background:var(--surface2);padding:7px;text-align:center}
+.md-final-stat b{display:block;font-size:15px;font-weight:900;color:var(--blue)}
+.md-final-stat span{display:block;margin-top:2px;font-size:8px;font-weight:800;color:var(--muted)}
+#md-final-server-list{display:grid;gap:6px;margin-top:7px}
+.md-final-device{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.md-final-device-main{min-width:0}.md-final-device-name{font-size:10px;font-weight:900}.md-final-device-meta{font-size:8px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.md-final-online{font-size:9px;font-weight:900;white-space:nowrap}.md-final-online.ok{color:#168a45}.md-final-online.off{color:#d33b3b}.md-final-online.pending{color:#b06b00}
+@media(max-width:420px){#md-final-stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+<script id="md-final-authority-fix">
+(function(){'use strict';
+ const OWNER='pos_multi_device_owner_token_v1', TOKEN='pos_multi_device_device_token_v1', SHOP='pos_multi_device_shop_id_v1', DEV='pos_multi_device_local_v2';
+ const $=id=>document.getElementById(id);
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const read=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?f:v}catch(e){return f}};
+ const cfg=()=>{try{return {...(window.POS_SYNC_CONFIG||{}),...JSON.parse(localStorage.getItem('pos_multi_device_config_v1')||'{}')}}catch(e){return window.POS_SYNC_CONFIG||{}}};
+ const owner=()=>!!localStorage.getItem(OWNER);
+ const deviceId=()=>localStorage.getItem('pos_multi_device_id_v1')||'';
+ const shop=()=>localStorage.getItem(SHOP)||'';
+ function fmt(v){if(!v)return 'Never';try{return new Date(v).toLocaleString()}catch(e){return String(v)}}
+ function online(v){if(!v)return false; if(typeof v==='boolean')return v; const t=new Date(v).getTime();return Number.isFinite(t)&&(Date.now()-t<30000)}
+ function installStats(){
+   const host=document.querySelector('#multi-device-window .md-card:nth-child(2)'); if(!host)return;
+   if(!$('md-final-stats')){
+     const s=document.createElement('div');s.id='md-final-stats';s.innerHTML='<div class="md-final-stat"><b id="md-final-total">0</b><span>TOTAL</span></div><div class="md-final-stat"><b id="md-final-online">0</b><span>ONLINE</span></div><div class="md-final-stat"><b id="md-final-offline">0</b><span>OFFLINE</span></div><div class="md-final-stat"><b id="md-final-pending">0</b><span>PENDING</span></div>';
+     const anchor=$('md-live-device-panel')||$('multi-device-list'); if(anchor&&anchor.parentNode===host)host.insertBefore(s,anchor);else host.appendChild(s);
+   }
+   if(!$('md-final-server-list')){const p=document.createElement('div');p.id='md-final-server-list';const a=$('md-live-device-panel')||$('multi-device-list');if(a&&a.parentNode===host)host.insertBefore(p,a);else host.appendChild(p)}
+ }
+ function renderPendingOnlyA(requests){
+   const box=$('md-auth-pending'), legacy=$('multi-device-approval-list');
+   if(!box)return;
+   if(!owner()){
+     box.innerHTML='<div class="md-auth-note">Device B/C: waiting for Device A approval.</div>';
+     if(legacy)legacy.innerHTML='<div style="padding:10px;color:var(--muted);font-size:10px">Waiting for Device A approval.</div>';
+     document.querySelectorAll('#multi-device-window [onclick*="multiDeviceApprove"],#multi-device-window [onclick*="multiDeviceDeny"]').forEach(x=>x.style.display='none');
+     return;
+   }
+   const rows=Array.isArray(requests)?requests:[];
+   const html=rows.length?rows.map(r=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(r.device_id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(r.id||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(r.id||'')+'\')">DENY</button></div></div>').join(''):'<div class="md-auth-note">No pending device requests.</div>';
+   box.innerHTML=html;
+   if(legacy)legacy.innerHTML=rows.length?rows.map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(r.device_id||'')+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id||'')+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id||'')+'\')">DENY</button></div>').join(''):'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>';
+ }
+ async function serverStatus(){
+   const c=cfg();if(!owner()||!/^https:\/\//i.test(c.url)||!c.key||!shop())return null;
+   const r=await fetch(String(c.url).replace(/\/$/,'')+'/rest/v1/rpc/pos_device_status',{method:'POST',headers:{'Content-Type':'application/json','apikey':c.key,'Authorization':'Bearer '+c.key},body:JSON.stringify({p_shop_id:shop(),p_owner_token:localStorage.getItem(OWNER)||''})});
+   const d=await r.json().catch(()=>({}));if(!r.ok||d?.ok===false)throw new Error(d?.error||('HTTP '+r.status));return d;
+ }
+ async function pendingStatus(){
+   if(!owner())return {requests:[]};
+   const c=cfg();if(!/^https:\/\//i.test(c.url)||!c.key||!shop())return {requests:[]};
+   const r=await fetch(String(c.url).replace(/\/$/,'')+'/functions/v1/pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':c.key,'Authorization':'Bearer '+c.key},body:JSON.stringify({action:'pending_requests',shopId:shop(),ownerToken:localStorage.getItem(OWNER)||''})});
+   const d=await r.json().catch(()=>({}));if(!r.ok||d?.ok===false)throw new Error(d?.error||('HTTP '+r.status));return d;
+ }
+ function renderServer(d,requests){
+   installStats();const list=$('md-final-server-list');if(!list)return;
+   const rows=[];if(d?.owner)rows.push({...d.owner,_owner:true});if(Array.isArray(d?.devices))rows.push(...d.devices);
+   const myId=deviceId();const all=rows.filter(x=>x&&x.device_id);
+   const total=all.length, on=all.filter(x=>String(x.status||'approved').toLowerCase()!=='revoked'&&(x.online===true||online(x.last_seen_at))).length;
+   $('md-final-total').textContent=total;$('md-final-online').textContent=on;$('md-final-offline').textContent=Math.max(0,total-on);$('md-final-pending').textContent=Array.isArray(requests)?requests.length:0;
+   list.innerHTML='<div class="md-live-title">DEVICES • LIVE STATUS <span class="md-server-badge live">SERVER LIVE</span></div>'+(all.length?all.map(x=>{const rev=String(x.status||'').toLowerCase()==='revoked',isOn=!rev&&(x.online===true||online(x.last_seen_at));const prefix=x._owner?'A':(x.prefix||'');const name=(prefix?prefix+' • ':'')+((x.device_name||'Device'));return '<div class="md-final-device"><div class="md-final-device-main"><div class="md-final-device-name">'+esc(name)+(String(x.device_id)===String(myId)?' • THIS DEVICE':'')+'</div><div class="md-final-device-meta">Device ID: '+esc(x.device_id)+' • Last seen: '+esc(fmt(x.last_seen_at))+' • Last sync: '+esc(fmt(x.last_sync_at))+'</div></div><div class="md-final-online '+(rev?'off':isOn?'ok':'off')+'">'+(rev?'🔴 REVOKED':isOn?'🟢 ONLINE':'🔴 OFFLINE')+'</div></div>'}).join(''):'<div class="md-auth-note">No linked devices found on server.</div>');
+   /* Server is authoritative on Device A: do not let old local live renderer overwrite it. */
+   const old=$('md-live-device-panel');if(old)old.style.display='none';
+ }
+ async function refresh(){
+   installStats();
+   if(!owner()){
+     $('md-final-total').textContent='—';$('md-final-online').textContent='—';$('md-final-offline').textContent='—';$('md-final-pending').textContent='—';
+     const list=$('md-final-server-list');if(list)list.innerHTML='<div class="md-live-title">DEVICES • LIVE STATUS</div><div class="md-auth-note">🔐 Device B/C: server device status is controlled by Device A.</div>';
+     renderPendingOnlyA([]);return;
+   }
+   try{const [d,p]=await Promise.all([serverStatus(),pendingStatus()]);renderServer(d,p.requests||[]);renderPendingOnlyA(p.requests||[]);}
+   catch(e){const list=$('md-final-server-list');if(list)list.innerHTML='<div class="md-live-title">DEVICES • LIVE STATUS <span class="md-server-badge err">SERVER OFFLINE</span></div><div class="md-auth-note">Could not refresh server status. Check Cloud Setup.</div>';}
+ }
+ function gateB(){if(owner())return;document.querySelectorAll('#multi-device-window [onclick*="multiDeviceApprove"],#multi-device-window [onclick*="multiDeviceDeny"]').forEach(x=>x.style.display='none');const p=$('md-auth-pending');if(p)p.innerHTML='<div class="md-auth-note">Device B/C: waiting for Device A approval.</div>';const l=$('multi-device-approval-list');if(l)l.innerHTML='<div style="padding:10px;color:var(--muted);font-size:10px">Waiting for Device A approval.</div>';}
+ const oldOpen=window.openMultiDeviceWindow;
+ window.openMultiDeviceWindow=async function(){const r=oldOpen?await oldOpen.apply(this,arguments):undefined;setTimeout(()=>{gateB();refresh()},100);setTimeout(()=>{gateB();refresh()},700);return r};
+ window.__mdFinalRefresh=refresh;
+ window.addEventListener('load',()=>{setTimeout(()=>{gateB();refresh()},1200);setInterval(()=>{gateB();refresh()},8000)});
+ window.addEventListener('focus',()=>{gateB();refresh()});
+})();
+</script>
 </body>
 </html>
