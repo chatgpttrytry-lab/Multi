@@ -1592,7 +1592,7 @@ div>
 
 
 <!-- MULTI-DEVICE SYNC: lightweight QR/linking shell -->
-<div id="multi-device-overlay" aria-hidden="true"><div id="multi-device-window" role="dialog" aria-modal="true" aria-label="Multi-Device Sync"><div class="md-head"><div><div class="md-title">📱 Multi-Device Sync</div><div class="md-sub">Link another phone / PC with one fixed QR</div></div><button class="md-close" type="button" onclick="closeMultiDeviceWindow()">✕</button></div><div class="md-body"><div class="md-grid"><div class="md-card"><h3>🔗 Link this shop</h3><p>Keep this QR inside the app. Another device can scan it with Google Lens / camera and open the same shop entry page.</p><div class="md-qr-wrap"><div id="multi-device-qr"></div></div><div id="multi-device-link" class="md-link"></div><div class="md-actions"><button class="md-btn" type="button" onclick="multiDeviceRefreshQr()">↻ REFRESH QR</button><button class="md-btn secondary" type="button" onclick="multiDeviceCopyLink()">COPY LINK</button></div><div class="md-status"><span class="md-dot"></span><span id="multi-device-shop-status">QR ready</span></div></div><div class="md-card"><h3>📲 Linked Devices</h3><p>Approved devices sync bill changes through the cloud. The HTML file keeps only a small offline queue and cursor.</p><div id="multi-device-list" class="md-devices"></div><div id="multi-device-approval-list" class="md-devices"></div><div class="md-note"><b>Cloud setup:</b> paste your Supabase project URL, publishable key, and the public URL where this HTML is hosted. The service-role key must never be put here.</div><div style="display:grid;gap:6px;margin-top:8px"><input id="md-api-url" class="md-input" placeholder="Supabase URL: https://xxxx.supabase.co"><input id="md-api-key" class="md-input" placeholder="Supabase publishable key"><input id="md-join-url" class="md-input" placeholder="Hosted POS URL (https://...)" ></div><div class="md-actions"><button class="md-btn secondary" type="button" onclick="openMultiDeviceCloudSetup()">⚙️ CLOUD SETUP WIZARD</button><button class="md-btn" type="button" onclick="multiDeviceSaveConfig()">SAVE CLOUD CONFIG</button></div><div class="md-note"><b>How it will work:</b> Fixed QR → Google Lens → website → device link approval → billing sync. Bills are not stored inside the QR and the HTML file does not grow with cloud history.</div><div class="md-actions"><button class="md-btn secondary" type="button" onclick="multiDeviceClearLocalLinks()">CLEAR LOCAL DEVICE LIST</button></div></div></div></div></div></div>
+<div id="multi-device-overlay" aria-hidden="true"><div id="multi-device-window" role="dialog" aria-modal="true" aria-label="Multi-Device Sync"><div class="md-head"><div><div class="md-title">📱 Multi-Device Sync</div><div class="md-sub">Link another phone / PC with one fixed QR</div></div><button class="md-close" type="button" onclick="closeMultiDeviceWindow()">✕</button></div><div class="md-body"><div class="md-grid"><div class="md-card"><h3>🔗 Link this shop</h3><p>Keep this QR inside the app. Another device can scan it with Google Lens / camera and open the same shop entry page.</p><div class="md-qr-wrap"><div id="multi-device-qr"></div></div><div id="multi-device-link" class="md-link"></div><div class="md-actions"><button class="md-btn" type="button" onclick="multiDeviceRefreshQr()">↻ REFRESH QR</button><button class="md-btn secondary" type="button" onclick="multiDeviceCopyLink()">COPY LINK</button></div><div class="md-status"><span class="md-dot"></span><span id="multi-device-shop-status">QR ready</span></div></div><div class="md-card"><h3>📲 Linked Devices</h3><p>Approved devices sync bill changes through the cloud. The HTML file keeps only a small offline queue and cursor.</p><div id="multi-device-list" class="md-devices"></div><div id="md-sales-auth-status" class="md-note" style="margin-top:8px">🔐 ADMIN / UNLINKED MODE</div><div id="multi-device-approval-list" class="md-devices"></div><div class="md-note"><b>Cloud setup:</b> paste your Supabase project URL, publishable key, and the public URL where this HTML is hosted. The service-role key must never be put here.</div><div style="display:grid;gap:6px;margin-top:8px"><input id="md-api-url" class="md-input" placeholder="Supabase URL: https://xxxx.supabase.co"><input id="md-api-key" class="md-input" placeholder="Supabase publishable key"><input id="md-join-url" class="md-input" placeholder="Hosted POS URL (https://...)" ></div><div class="md-actions"><button class="md-btn secondary" type="button" onclick="openMultiDeviceCloudSetup()">⚙️ CLOUD SETUP WIZARD</button><button class="md-btn" type="button" onclick="multiDeviceSaveConfig()">SAVE CLOUD CONFIG</button></div><div class="md-note"><b>How it will work:</b> Fixed QR → Google Lens → website → device link approval → billing sync. Bills are not stored inside the QR and the HTML file does not grow with cloud history.</div><div class="md-actions"><button class="md-btn secondary" type="button" onclick="multiDeviceClearLocalLinks()">CLEAR LOCAL DEVICE LIST</button></div></div></div></div></div></div>
 
 <!-- MULTI-DEVICE CLOUD SETUP WIZARD -->
 <div id="multi-device-cloud-setup" aria-hidden="true">
@@ -12560,13 +12560,17 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script id="multi-device-sync-shell">
 (function(){'use strict';
 window.POS_SYNC_CONFIG=window.POS_SYNC_CONFIG||{url:'',key:'',joinUrl:''};
-const DEV_KEY='pos_multi_device_local_v2',SHOP_KEY='pos_multi_device_shop_id_v1',OWNER_KEY='pos_multi_device_owner_token_v1',TOKEN_KEY='pos_multi_device_device_token_v1',CURSOR_KEY='pos_multi_device_cursor_v1',QUEUE_KEY='pos_multi_device_queue_v1',CONFIG_KEY='pos_multi_device_config_v1',DEVICE_ID_KEY='pos_multi_device_id_v1', $=id=>document.getElementById(id);
+const DEV_KEY='pos_multi_device_local_v2',SHOP_KEY='pos_multi_device_shop_id_v1',OWNER_KEY='pos_multi_device_owner_token_v1',TOKEN_KEY='pos_multi_device_device_token_v1',CURSOR_KEY='pos_multi_device_cursor_v1',QUEUE_KEY='pos_multi_device_queue_v1',CONFIG_KEY='pos_multi_device_config_v1',DEVICE_ID_KEY='pos_multi_device_id_v1',DEVICE_ROLE_KEY='pos_multi_device_role_v1',DEVICE_AUTH_MODE_KEY='pos_multi_device_auth_mode_v1', $=id=>document.getElementById(id);
 const defaultCfg={url:'',key:'',joinUrl:''};
 function cfg(){try{return {...defaultCfg,...window.POS_SYNC_CONFIG,...JSON.parse(localStorage.getItem(CONFIG_KEY)||'{}')}}catch(e){return {...defaultCfg,...window.POS_SYNC_CONFIG}}}
 function saveCfg(){const c={url:String($('md-api-url')?.value||'').trim().replace(/\/$/,''),key:String($('md-api-key')?.value||'').trim(),joinUrl:String($('md-join-url')?.value||'').trim()};localStorage.setItem(CONFIG_KEY,JSON.stringify(c));return c}
 function shop(){let x=localStorage.getItem(SHOP_KEY);if(!x){x='SHOP-'+Math.random().toString(36).slice(2,10).toUpperCase();try{localStorage.setItem(SHOP_KEY,x)}catch(e){}}return x}
 function deviceId(){let x=localStorage.getItem(DEVICE_ID_KEY);if(!x){x='DEV-'+crypto.randomUUID().replace(/-/g,'').slice(0,12).toUpperCase();localStorage.setItem(DEVICE_ID_KEY,x)}return x}
 function deviceName(){return (navigator.userAgentData?.mobile?'Phone':'Browser')+' • '+location.hostname}
+function setSalesDeviceAuth(){try{localStorage.setItem(DEVICE_ROLE_KEY,'sales');localStorage.setItem(DEVICE_AUTH_MODE_KEY,'device_token');localStorage.removeItem(OWNER_KEY)}catch(e){}}
+function isSalesDevice(){return localStorage.getItem(DEVICE_ROLE_KEY)==='sales'&&localStorage.getItem(DEVICE_AUTH_MODE_KEY)==='device_token'}
+function hasDeviceToken(){return !!localStorage.getItem(TOKEN_KEY)}
+function salesAuthLabel(){return isSalesDevice()&&hasDeviceToken()?'SALES • Device Token':'Not linked'}
 function devices(){try{const a=JSON.parse(localStorage.getItem(DEV_KEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}}
 function saveDevices(a){localStorage.setItem(DEV_KEY,JSON.stringify(a.slice(-50)))}
 function queue(){try{const a=JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}}
@@ -12575,26 +12579,99 @@ function apiReady(){const c=cfg();return /^https:\/\//i.test(c.url)&&c.key}
 async function api(action,payload={}){const c=cfg();if(!apiReady())throw new Error('Cloud Sync is not configured');const r=await fetch(c.url+'/functions/v1/pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':c.key,'Authorization':'Bearer '+c.key},body:JSON.stringify({action,...payload})});const d=await r.json().catch(()=>({}));if(!r.ok||d.ok===false)throw new Error(d.error||('HTTP '+r.status));return d}
 function status(t,ok){const s=$('multi-device-shop-status');if(s)s.textContent=t;const dot=s?.previousElementSibling;if(dot)dot.style.opacity=ok===false?.45:1}
 function renderConfig(){const c=cfg();if($('md-api-url'))$('md-api-url').value=c.url;if($('md-api-key'))$('md-api-key').value=c.key;if($('md-join-url'))$('md-join-url').value=c.joinUrl||location.href.split('#')[0].split('?')[0]}
-function link(){const c=cfg();const base=(c.joinUrl||location.href.split('#')[0].split('?')[0]).replace(/\/$/,'');return base+'?multi_device=join&shop='+encodeURIComponent(shop())}
-function render(){const b=$('multi-device-list');if(!b)return;const a=devices();b.innerHTML=a.length?a.map((d,i)=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">'+esc(d.status||'Linked')+' • '+esc(d.id||'')+'</div></div><button class="md-device-remove" onclick="multiDeviceRemove('+i+')">REMOVE</button></div>').join(''):'<div style="padding:16px;text-align:center;color:var(--muted);font-size:10px">Main device: '+esc(deviceId())+'<br>No approved linked devices yet.</div>';}
+function link(){const c=cfg();const base=(c.joinUrl||location.href.split('#')[0].split('?')[0]).replace(/\/$/,'');let out=base+'?multi_device=join&shop='+encodeURIComponent(shop());if(/^https:\/\//i.test(c.url)&&c.key){try{out+='#mdcloud='+encodeURIComponent(JSON.stringify({u:c.url,k:c.key}))}catch(e){}}return out}
+function render(){const b=$('multi-device-list');if(!b)return;const a=devices();b.innerHTML=a.length?a.map((d,i)=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">'+esc(d.status||'Linked')+' • '+esc(d.id||'')+'</div></div><button class="md-device-remove" onclick="multiDeviceRemove('+i+')">REMOVE</button></div>').join(''):'<div style="padding:16px;text-align:center;color:var(--muted);font-size:10px">Main device: '+esc(deviceId())+'<br>No approved linked devices yet.</div>';const auth=$('md-sales-auth-status');if(auth){auth.textContent=isSalesDevice()&&hasDeviceToken()?'🔐 SALES MODE • Device Token linked • No Google/Supabase user login required':'🔐 ADMIN / UNLINKED MODE';}}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function renderQr(){const b=$('multi-device-qr');if(!b)return;b.innerHTML='';const l=link();$('multi-device-link').textContent=l;try{if(typeof QRCode==='function'){new QRCode(b,{text:l,width:190,height:190,correctLevel:QRCode.CorrectLevel.M});status(apiReady()?'Cloud QR ready':'QR ready • configure cloud below',apiReady())}else status('QR library unavailable',false)}catch(e){status('Could not generate QR',false)}}
 async function ensureShop(){if(!apiReady()){status('Local mode • cloud not configured',false);return false}const owner=localStorage.getItem(OWNER_KEY);if(owner)return true;try{const d=await api('register_shop',{shopId:shop(),deviceId:deviceId(),deviceName:deviceName()});if(d.created&&d.ownerToken){localStorage.setItem(OWNER_KEY,d.ownerToken);status('Cloud shop created ✓',true);return true}status('Cloud shop exists • owner token is missing',false);return false}catch(e){status('Cloud setup: '+e.message,false);return false}}
-async function pushPending(){const token=localStorage.getItem(TOKEN_KEY);if(!token)return;const q=queue();if(!q.length)return;try{const d=await api('push',{deviceToken:token,events:q.slice(0,100)});if(d.ok){setQueue(q.slice(Number(d.accepted)||q.length));status('Synced ✓ • '+queue().length+' pending',true)}}catch(e){status('Offline • '+q.length+' pending',false)}}
-function applyRemote(ev){if(!ev||!ev.entity_id)return;try{if(ev.event_type==='bill.upsert'){const h=ev.payload?.bill;if(!h)return;const hist=typeof getHistory==='function'?getHistory('pos'):[];const idx=hist.findIndex(x=>String(x.syncId||x.id)===String(ev.entity_id)||String(x.bill||'')===String(h.bill||'')&&String(x.shop||'')===String(h.shop||''));const row={...h,syncId:String(ev.entity_id),_remote:true};if(idx>=0)hist[idx]={...hist[idx],...row};else hist.unshift(row);localStorage.setItem(POS_BILLING_HISTORY_KEY,JSON.stringify(hist.slice(0,2000)));if(typeof renderHistory==='function')try{renderHistory()}catch(e){}}}catch(e){console.warn('Remote bill apply failed',e)}}
-async function pull(){const token=localStorage.getItem(TOKEN_KEY);if(!token)return;let cursor=Number(localStorage.getItem(CURSOR_KEY)||0);try{for(let i=0;i<5;i++){const d=await api('pull',{deviceToken:token,cursor,limit:100});for(const ev of d.events||[]){if(String(ev.device_id)!==deviceId())applyRemote(ev);cursor=Number(ev.seq)||cursor}localStorage.setItem(CURSOR_KEY,String(cursor));if(!d.hasMore)break}status('Cloud sync ✓ • cursor '+cursor,true)}catch(e){status(navigator.onLine?'Sync error • '+e.message:'Offline • waiting to sync',false)}}
-function enqueueBill(h){if(!h||h._remote)return;const entityId='BILL-'+String(h.bill||h.id||Date.now()).replace(/[^A-Za-z0-9_-]/g,'_')+'-'+String(h.id||Date.now());const ev={eventId:deviceId()+'-'+entityId,type:'bill.upsert',entityId,payload:{bill:{...h,syncId:entityId,_remote:undefined}},clientTime:new Date().toISOString()};const q=queue();if(!q.some(x=>x.eventId===ev.eventId)){q.push(ev);setQueue(q)}pushPending();}
+async function pushPending(){const token=localStorage.getItem(TOKEN_KEY);if(!token)return;const q=queue();if(!q.length)return;try{const d=await api('push',{deviceToken:token,events:q.slice(0,100)});if(d.ok){
+ let remaining=q;
+ const acceptedIds=Array.isArray(d.acceptedEventIds)?new Set(d.acceptedEventIds.map(String)):null;
+ if(acceptedIds) remaining=q.filter(ev=>!acceptedIds.has(String(ev.eventId)));
+ else remaining=q.slice(Number.isFinite(Number(d.accepted))?Number(d.accepted):q.length);
+ setQueue(remaining);
+ status('Synced ✓ • '+queue().length+' pending',true)
+}}catch(e){status('Offline • '+q.length+' pending',false)}}
+function applyRemote(ev){if(!ev||!ev.entity_id)return;try{if(ev.event_type==='bill.upsert'){const h=ev.payload?.bill;if(!h)return;const hist=typeof getHistory==='function'?getHistory('pos'):[];const idx=hist.findIndex(x=>String(x.syncId||x.id)===String(ev.entity_id)||String(x.bill||'')===String(h.bill||'')&&String(x.shop||'')===String(h.shop||''));const row={...h,syncId:String(ev.entity_id),_remote:true};const local=idx>=0?hist[idx]:null;const pending=queue();const localPending=pending.some(x=>String(x.entityId||'')===String(ev.entity_id));const remoteRev=Number(ev.revision||h.revision||h._revision||0);const localRev=Number(local?.revision||local?._revision||0);if(local&&localPending&&remoteRev>=localRev){const cs=mdRead('pos_multi_device_conflicts_v1',[]);if(!cs.some(x=>x.entityId===String(ev.entity_id))){cs.push({entityId:String(ev.entity_id),bill:h.bill||local.bill||'',time:new Date().toISOString(),message:'Bill updated on another device'});mdWrite('pos_multi_device_conflicts_v1',cs.slice(-100));}return;}if(idx>=0)hist[idx]={...hist[idx],...row};else hist.unshift(row);localStorage.setItem(POS_BILLING_HISTORY_KEY,JSON.stringify(hist.slice(0,2000)));if(typeof renderHistory==='function')try{renderHistory()}catch(e){}}}catch(e){console.warn('Remote bill apply failed',e)}}
+async function pull(){const token=localStorage.getItem(TOKEN_KEY);if(!token)return;let cursor=Number(localStorage.getItem(CURSOR_KEY)||0);try{for(let i=0;i<5;i++){const d=await api('pull',{deviceToken:token,cursor,limit:100});for(const ev of d.events||[]){if(String(ev.device_id)!==deviceId())applyRemote(ev);cursor=Number(ev.seq)||cursor}localStorage.setItem(CURSOR_KEY,String(cursor));if(!d.hasMore)break}status('Cloud sync ✓ • cursor '+cursor,true)}catch(e){const msg=String(e?.message||e||'');if(/revok|invalid.*token|token.*invalid|unauthoriz|401/i.test(msg)){localStorage.removeItem(TOKEN_KEY);localStorage.setItem(DEVICE_ROLE_KEY,'sales');localStorage.setItem(DEVICE_AUTH_MODE_KEY,'device_token');status('🔴 Device access revoked by Admin',false);try{alert('Device access revoked by Admin.\nCloud access is blocked.')}catch(_){}}else status(navigator.onLine?'Sync error • '+msg:'Offline • waiting to sync',false)}}
+function enqueueBill(h){if(!h||h._remote)return;const entityId='BILL-'+String(h.bill||h.id||Date.now()).replace(/[^A-Za-z0-9_-]/g,'_')+'-'+String(h.id||Date.now());const localDevice=devices().find(x=>String(x.id)===String(deviceId()))||{};
+const ev={eventId:deviceId()+'-'+entityId,type:'bill.upsert',entityId,deviceId:deviceId(),role:role(),prefix:String(localDevice.prefix||localStorage.getItem('pos_multi_device_prefix_v1')||''),payload:{bill:{...h,syncId:entityId,_remote:undefined}},clientTime:new Date().toISOString(),revision:Number(h.revision||h._revision||1)};const q=queue();if(!q.some(x=>x.eventId===ev.eventId)){q.push(ev);setQueue(q)}pushPending();}
 window.posCloudSync={enqueueBill,trigger:async()=>{await ensureShop();await pushPending();await pull()}};
 window.multiDeviceRefreshQr=renderQr;
 window.multiDeviceCopyLink=async function(){const l=link();try{await navigator.clipboard.writeText(l);status('Link copied ✓',true)}catch(e){window.prompt('Copy this shop link:',l)}};
 window.multiDeviceRemove=function(i){const a=devices();a.splice(i,1);saveDevices(a);render()};
 window.multiDeviceClearLocalLinks=function(){localStorage.removeItem(DEV_KEY);render()};
 window.multiDeviceSaveConfig=async function(){saveCfg();renderQr();if(await ensureShop()){await refreshOwnerData();await pushPending();await pull()}else render()};
+window.multiDeviceAuthStatus=function(){return {role:role(),authMode:owner()?'owner_token':(hasDeviceToken()?'device_token':'none'),deviceId:deviceId(),deviceTokenLinked:hasDeviceToken(),ownerLinked:owner()};};
 async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){if(!a.some(x=>x.requestId===r.id))a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render()}catch(e){}}
-window.multiDeviceApprove=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return alert('Owner token is not available on this device.');try{await api('approve_request',{shopId:shop(),ownerToken:owner,requestId});status('Device approved ✓',true);await refreshOwnerData();}catch(e){alert(e.message)}};
+window.multiDeviceApprove=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return alert('Owner token is not available on this device.');try{await api('approve_request',{shopId:shop(),ownerToken:owner,requestId,role:'sales'});status('Device approved ✓ • SALES uses Device Token only',true);await refreshOwnerData();}catch(e){alert(e.message)}};
 window.multiDeviceDeny=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{await api('deny_request',{shopId:shop(),ownerToken:owner,requestId});await refreshOwnerData()}catch(e){alert(e.message)}};
 async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old)old.status='Pending approval';else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){status('Owner check failed',false)}}
-const SETUP_SQL = "create table if not exists public.pos_sync_shops(id uuid primary key default gen_random_uuid(),shop_id text not null unique,owner_token_hash text not null,owner_device_id text not null,owner_device_name text not null default 'Main Device',created_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_devices(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',device_token_hash text not null,status text not null default 'approved' check(status in('approved','revoked')),approved_at timestamptz,last_seen_at timestamptz,created_at timestamptz not null default now(),unique(shop_id,device_id),unique(device_token_hash));\ncreate table if not exists public.pos_sync_pair_requests(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',status text not null default 'pending' check(status in('pending','approved','denied')),device_token text,created_at timestamptz not null default now(),updated_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_events(seq bigint generated always as identity primary key,shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,event_id text not null,device_id text not null,event_type text not null,entity_id text not null,payload jsonb not null default '{}'::jsonb,client_time timestamptz,created_at timestamptz not null default now(),unique(shop_id,event_id));\ncreate index if not exists pos_sync_events_shop_seq_idx on public.pos_sync_events(shop_id,seq);\ncreate index if not exists pos_sync_pair_requests_pending_idx on public.pos_sync_pair_requests(shop_id,status,created_at);\nalter table public.pos_sync_shops enable row level security; alter table public.pos_sync_devices enable row level security; alter table public.pos_sync_pair_requests enable row level security; alter table public.pos_sync_events enable row level security;\nrevoke all on public.pos_sync_shops from anon,authenticated; revoke all on public.pos_sync_devices from anon,authenticated; revoke all on public.pos_sync_pair_requests from anon,authenticated; revoke all on public.pos_sync_events from anon,authenticated;";
+const SETUP_SQL = `create table if not exists public.pos_sync_shops(id uuid primary key default gen_random_uuid(),shop_id text not null unique,owner_token_hash text not null,owner_device_id text not null,owner_device_name text not null default 'Main Device',created_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_devices(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',device_token_hash text not null,permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',status text not null default 'approved' check(status in('approved','revoked')),approved_at timestamptz,last_seen_at timestamptz,created_at timestamptz not null default now(),unique(shop_id,device_id),unique(device_token_hash));\ncreate table if not exists public.pos_sync_pair_requests(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',status text not null default 'pending' check(status in('pending','approved','denied')),permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',device_token text,created_at timestamptz not null default now(),updated_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_events(seq bigint generated always as identity primary key,shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,event_id text not null,device_id text not null,event_type text not null,entity_id text not null,payload jsonb not null default '{}'::jsonb,client_time timestamptz,created_at timestamptz not null default now(),unique(shop_id,event_id));\ncreate index if not exists pos_sync_events_shop_seq_idx on public.pos_sync_events(shop_id,seq);\ncreate index if not exists pos_sync_pair_requests_pending_idx on public.pos_sync_pair_requests(shop_id,status,created_at);\nalter table public.pos_sync_shops enable row level security; alter table public.pos_sync_devices enable row level security; alter table public.pos_sync_pair_requests enable row level security; alter table public.pos_sync_events enable row level security;\nrevoke all on public.pos_sync_shops from anon,authenticated; revoke all on public.pos_sync_devices from anon,authenticated; revoke all on public.pos_sync_pair_requests from anon,authenticated; revoke all on public.pos_sync_events from anon,authenticated;
+create extension if not exists pgcrypto;
+alter table public.pos_sync_shops add column if not exists owner_last_seen_at timestamptz;
+alter table public.pos_sync_devices add column if not exists last_sync_at timestamptz;
+create or replace function public.pos_device_heartbeat(p_shop_id text,p_device_id text,p_device_token text,p_owner_token text default null,p_is_sync boolean default false)
+returns jsonb language plpgsql security definer set search_path=public,extensions as $$
+declare v_ok boolean:=false; v_role text:='none';
+begin
+ if coalesce(p_owner_token,'')<>'' and exists(select 1 from public.pos_sync_shops s where s.shop_id=p_shop_id and s.owner_token_hash=encode(extensions.digest(p_owner_token,'sha256'),'hex')) then
+   update public.pos_sync_shops set owner_last_seen_at=now() where shop_id=p_shop_id; v_ok:=true; v_role:='owner';
+ elsif coalesce(p_device_token,'')<>'' and exists(select 1 from public.pos_sync_devices d where d.shop_id=p_shop_id and d.device_id=p_device_id and d.device_token_hash=encode(extensions.digest(p_device_token,'sha256'),'hex') and d.status='approved') then
+   update public.pos_sync_devices set last_seen_at=now(),last_sync_at=case when p_is_sync then now() else last_sync_at end where shop_id=p_shop_id and device_id=p_device_id; v_ok:=true; v_role:='sales';
+ end if;
+ return jsonb_build_object('ok',v_ok,'role',v_role,'server_time',now());
+end $$;
+alter table public.pos_sync_devices add column if not exists prefix text;
+
+create or replace function public.pos_device_status(p_shop_id text,p_owner_token text)
+returns jsonb language plpgsql security definer set search_path=public,extensions as $$
+declare v_ok boolean:=false; v_devices jsonb:='[]'::jsonb; v_owner jsonb:='{}'::jsonb;
+begin
+ select exists(select 1 from public.pos_sync_shops s where s.shop_id=p_shop_id and s.owner_token_hash=encode(extensions.digest(p_owner_token,'sha256'),'hex')) into v_ok;
+ if not v_ok then return jsonb_build_object('ok',false,'error','Unauthorized'); end if;
+ /* Keep the fixed A/B/C/D assignment server-authoritative. Existing rows without a prefix are backfilled by creation order. */
+ with ranked as (
+   select d.id,d.shop_id,d.device_id,d.device_name,d.role,d.status,d.prefix,d.last_seen_at,d.last_sync_at,d.created_at,
+          ('B' || '') as fallback_prefix,
+          row_number() over(order by d.created_at,d.id) as rn
+   from public.pos_sync_devices d where d.shop_id=p_shop_id
+ ), fixed as (
+   select r.*, case when coalesce(nullif(upper(r.prefix),''),'') in ('B','C','D') then upper(r.prefix)
+                    when r.rn=1 then 'B' when r.rn=2 then 'C' when r.rn=3 then 'D' else 'D' end as fixed_prefix
+   from ranked r
+ )
+ select coalesce(jsonb_agg(jsonb_build_object(
+   'device_id',f.device_id,
+   'device_name',f.device_name,
+   'role',f.role,
+   'status',f.status,
+   'prefix',f.fixed_prefix,
+   'last_seen_at',f.last_seen_at,
+   'last_sync_at',f.last_sync_at,
+   'online',f.status='approved' and f.last_seen_at is not null and f.last_seen_at > now()-interval '30 seconds'
+ ) order by f.created_at,f.id),'[]'::jsonb) into v_devices from fixed f;
+ select jsonb_build_object(
+   'device_id',s.owner_device_id,
+   'device_name',s.owner_device_name,
+   'role','admin',
+   'status','approved',
+   'prefix','A',
+   'last_seen_at',s.owner_last_seen_at,
+   'last_sync_at',null,
+   'online',s.owner_last_seen_at is not null and s.owner_last_seen_at > now()-interval '30 seconds'
+ ) into v_owner from public.pos_sync_shops s where s.shop_id=p_shop_id;
+ return jsonb_build_object(
+   'ok',true,
+   'server_time',now(),
+   'owner',v_owner,
+   'owner_online',coalesce((v_owner->>'online')::boolean,false),
+   'owner_last_seen_at',v_owner->>'last_seen_at',
+   'devices',v_devices
+ );
+end $$;
+grant execute on function public.pos_device_heartbeat(text,text,text,text,boolean) to anon,authenticated;
+grant execute on function public.pos_device_status(text,text) to anon,authenticated;`;
 const SETUP_COMMANDS = `npm install -g supabase
 supabase login
 supabase link --project-ref YOUR_PROJECT_REF
@@ -12657,11 +12734,223 @@ window.multiDeviceApplyCloudSetup=async function(){
     if(result){result.textContent='Connection failed: '+e.message;result.className='md-setup-result error'}
   }
 };
-async function join(){try{const q=new URLSearchParams(location.search);if(q.get('multi_device')!=='join')return;const sid=q.get('shop')||'';setTimeout(async()=>{if(!sid){history.replaceState({},'',location.href.split('?')[0]);return}if(!apiReady()){alert('This shop is not connected to cloud sync yet. Open the main device and configure Cloud Sync first.');history.replaceState({},'',location.href.split('?')[0]);return}if(confirm('Join this shop on this device?\nShop: '+sid)){try{const d=await api('pair_request',{shopId:sid,deviceId:deviceId(),deviceName:deviceName()});localStorage.setItem(SHOP_KEY,sid);const a=devices();if(!a.some(x=>x.id===deviceId()))a.push({id:deviceId(),name:deviceName(),status:d.status==='approved'?'Approved':'Pending approval',requestId:d.requestId});saveDevices(a);alert(d.status==='approved'?'Device already linked.':'Request sent. The main device must approve this device.');pollPair(sid,d.requestId)}catch(e){alert('Pairing failed: '+e.message)}}history.replaceState({},'',location.href.split('?')[0])},300)}catch(e){}}
-async function pollPair(sid,rid){for(let i=0;i<120;i++){await new Promise(r=>setTimeout(r,3000));try{const d=await api('pair_status',{shopId:sid,deviceId:deviceId(),requestId:rid});if(d.status==='approved'&&d.deviceToken){localStorage.setItem(TOKEN_KEY,d.deviceToken);status('Device linked ✓',true);await pull();return}if(d.status==='denied'){status('Pairing denied',false);return}}catch(e){}}}
+async function join(){try{const q=new URLSearchParams(location.search);if(q.get('multi_device')!=='join')return;const sid=q.get('shop')||'';setTimeout(async()=>{if(!sid){history.replaceState({},'',location.href.split('?')[0]);return}/* QR carries only the public Supabase browser config in the URL fragment, so a fresh tablet can connect without manual setup. */try{const raw=location.hash.startsWith('#mdcloud=')?decodeURIComponent(location.hash.slice(9)):'';if(raw){const cc=JSON.parse(raw);if(/^https:\/\//i.test(cc?.u)&&cc?.k){const merged={...cfg(),url:String(cc.u).replace(/\/$/,''),key:String(cc.k)};localStorage.setItem(CONFIG_KEY,JSON.stringify(merged));}}}catch(e){}if(!apiReady()){alert('This shop is not connected to cloud sync yet. Open the main device and configure Cloud Sync first.');history.replaceState({},'',location.href.split('?')[0]);return}if(confirm('Join this shop on this device?\nShop: '+sid+'\n\nThis device will use SALES mode with a Device Token.\nGoogle login / Supabase Auth user ID is not required.')){try{setSalesDeviceAuth();const d=await api('pair_request',{shopId:sid,deviceId:deviceId(),deviceName:deviceName(),role:'sales',authMode:'device_token'});localStorage.setItem(SHOP_KEY,sid);const a=devices();if(!a.some(x=>x.id===deviceId()))a.push({id:deviceId(),name:deviceName(),status:d.status==='approved'?'Approved':'Pending approval',requestId:d.requestId,role:'sales',authMode:'device_token',prefix:d.prefix||'',permissions:Array.isArray(d.permissions)?d.permissions:[]});saveDevices(a);alert(d.status==='approved'?'Device already linked.':'Request sent. The main device must approve this device.');pollPair(sid,d.requestId)}catch(e){alert('Pairing failed: '+e.message)}}history.replaceState({},'',location.href.split('?')[0])},300)}catch(e){}}
+async function pollPair(sid,rid){for(let i=0;i<120;i++){await new Promise(r=>setTimeout(r,3000));try{const d=await api('pair_status',{shopId:sid,deviceId:deviceId(),requestId:rid});if(d.status==='approved'&&d.deviceToken){setSalesDeviceAuth();localStorage.setItem(TOKEN_KEY,d.deviceToken);status('Device linked ✓ • SALES / Device Token',true);await pull();render();return}if(d.status==='denied'){status('Pairing denied',false);return}}catch(e){}}}
 window.openMultiDeviceWindow=async function(){const o=$('multi-device-overlay');if(!o)return;document.body.classList.remove('home-mode');o.classList.add('open');o.setAttribute('aria-hidden','false');document.body.classList.add('modal-front-open');renderConfig();render();renderQr();await ensureShop();await refreshOwnerData();await ownerRefresh();await pushPending();await pull();render()};
 window.closeMultiDeviceWindow=function(){const o=$('multi-device-overlay');if(!o)return;o.classList.remove('open');o.setAttribute('aria-hidden','true');document.body.classList.remove('modal-front-open');if(window.saGoHome)window.saGoHome()};
-window.addEventListener('online',()=>{pushPending();pull()});window.addEventListener('load',()=>{join();setTimeout(()=>{if(apiReady()){pushPending();pull()}},1200);setInterval(()=>{if(apiReady()){pushPending();pull();ownerRefresh()}},15000)});
+window.addEventListener('online',()=>{pushPending();pull()});window.addEventListener('load',()=>{if(isSalesDevice()&&hasDeviceToken())status('SALES mode • Device Token linked',true);join();setTimeout(()=>{if(apiReady()){pushPending();pull()}},1200);setInterval(()=>{if(apiReady()){pushPending();pull();ownerRefresh()}},15000)});
+})();
+</script>
+
+<!-- MULTI-DEVICE AUTHORITY + WINDOW PERMISSIONS ADD-ON -->
+<style id="multi-device-authority-addon-css">
+#md-authority-panel{margin-top:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:11px;display:none}
+#md-authority-panel.open{display:block}
+.md-auth-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.md-auth-title{font-size:12px;font-weight:950}.md-auth-badge{font-size:9px;font-weight:900;padding:4px 7px;border-radius:8px;background:var(--blue2);color:var(--blue)}
+.md-auth-note{font-size:9px;color:var(--muted);line-height:1.45;margin-top:5px}.md-perm-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}.md-perm-row{display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);font-size:10px;font-weight:800}.md-perm-row input{accent-color:var(--blue)}
+.md-device-perm-card{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:9px;margin-top:7px}.md-device-perm-head{display:flex;align-items:center;justify-content:space-between;gap:7px}.md-device-perm-name{font-size:10px;font-weight:900}.md-device-perm-meta{font-size:8px;color:var(--muted);margin-top:2px}.md-perm-actions{display:flex;gap:5px;margin-top:7px}.md-perm-actions button{height:29px;border:0;border-radius:8px;padding:0 8px;background:var(--blue);color:#fff;font-size:9px;font-weight:900}.md-perm-actions button.secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+@media(max-width:600px){.md-perm-list{grid-template-columns:1fr}}
+</style>
+<script id="multi-device-authority-addon">
+(function(){
+'use strict';
+/* MULTI-DEVICE AUTHORITY PATCH — only this authority layer is changed. */
+const OWNER_KEY='pos_multi_device_owner_token_v1',TOKEN_KEY='pos_multi_device_device_token_v1',SHOP_KEY='pos_multi_device_shop_id_v1',PERM_KEY='pos_multi_device_permissions_v1',ROLE_KEY='pos_multi_device_role_v1',DEVICE_ID_KEY='pos_multi_device_id_v1';
+const PERMS=[['billing','Billing'],['calculator','Calculator'],['history','History'],['items','Item Database'],['analytics','Analytics'],['invoice','Invoice Studio'],['barcode','Barcode'],['notebook','Notebook'],['printer','Printer'],['cloud','Cloud Backup'],['settings','Settings'],['multi_device','Multi-Device Admin']];
+const $=id=>document.getElementById(id);
+const read=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?f:v}catch(e){return f}};
+const write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+const owner=()=>!!localStorage.getItem(OWNER_KEY);
+const role=()=>owner()?'owner':(hasDeviceToken()&&localStorage.getItem(ROLE_KEY)==='sales'?'sales':'unknown');
+const deviceId=()=>localStorage.getItem(DEVICE_ID_KEY)||'';
+function perms(){const p=read(PERM_KEY,[]);return Array.isArray(p)?p:(Array.isArray(p.permissions)?p.permissions:[])}
+function has(p){return owner()||(hasDeviceToken()&&perms().includes(p))}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function isOwner(){return owner()}
+function selectedPermissions(){return Array.from(document.querySelectorAll('[data-owner-perm]:checked')).map(x=>x.dataset.ownerPerm).filter(Boolean)}
+function apiConfig(){try{return {...(window.POS_SYNC_CONFIG||{}),...JSON.parse(localStorage.getItem('pos_multi_device_config_v1')||'{}')}}catch(e){return window.POS_SYNC_CONFIG||{}}}
+async function mdApi(action,payload){
+ const c=apiConfig(); if(!/^https:\/\//i.test(c.url)||!c.key)throw new Error('Cloud Sync is not configured');
+ const r=await fetch(String(c.url).replace(/\/$/,'')+'/functions/v1/pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':c.key,'Authorization':'Bearer '+c.key},body:JSON.stringify({action,...payload})});
+ const d=await r.json().catch(()=>({})); if(!r.ok||d.ok===false)throw new Error(d.error||('HTTP '+r.status)); return d;
+}
+window.__mdApi=mdApi;
+function ensurePanel(){
+ const card=document.querySelector('#multi-device-window .md-card:nth-child(2)'); if(!card||$('md-authority-panel'))return;
+ const p=document.createElement('div');p.id='md-authority-panel';p.innerHTML='<div class="md-auth-head"><div class="md-auth-title">🔐 Device Authority & Window Permissions</div><span id="md-auth-badge" class="md-auth-badge"></span></div><div id="md-auth-note" class="md-auth-note"></div><div id="md-auth-permissions" class="md-perm-list"></div><div id="md-auth-device-list"></div>';card.appendChild(p);
+}
+function renderAuthority(){
+ ensurePanel();const panel=$('md-authority-panel');if(!panel)return;panel.classList.add('open');const own=isOwner();
+ $('md-auth-badge').textContent=own?'DEVICE A • ADMIN':'DEVICE • '+(role()==='sales'?'SALES':'LINKED');
+ $('md-auth-note').textContent=own?'Only Device A can approve/deny devices, generate the pairing QR, revoke devices and change window permissions. Device B/C never receive the owner credential.':'This device is linked by Device A. Admin actions are unavailable.';
+ const box=$('md-auth-permissions');
+ if(own){box.innerHTML=PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" data-owner-perm="'+x[0]+'"> '+x[1]+'</label>').join('');}
+ else{box.innerHTML=PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" disabled '+(has(x[0])?'checked':'')+'> '+x[1]+'</label>').join('');}
+ renderDevicePermissionCards();
+ if(!own){const q=document.querySelector('#multi-device-window .md-card:first-child');if(q)q.style.display='none';const n=document.querySelector('#multi-device-window .md-note');if(n)n.style.display='none';}
+}
+function renderDevicePermissionCards(){
+ const box=$('md-auth-device-list');if(!box)return;if(!isOwner()){box.innerHTML='';return}
+ const list=read('pos_multi_device_local_v2',[]);const real=list.filter(d=>d&&d.status&&String(d.status).toLowerCase()!=='pending approval');
+ box.innerHTML=real.map((d,i)=>{const pp=Array.isArray(d.permissions)?d.permissions:[];return '<div class="md-device-perm-card"><div class="md-device-perm-head"><div><div class="md-device-perm-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-perm-meta">'+esc(d.id||'')+' • '+esc(d.status||'Linked')+'</div></div><span class="md-auth-badge">SALES</span></div><div class="md-perm-list">'+PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" data-dev-perm="'+i+'" data-perm="'+x[0]+'" '+(pp.includes(x[0])?'checked':'')+'> '+x[1]+'</label>').join('')+'</div><div class="md-perm-actions"><button type="button" onclick="window.mdSaveDevicePermissions('+i+')">SAVE PERMISSIONS</button><button type="button" class="secondary" onclick="window.mdRevokeDevice('+i+')">REVOKE</button></div></div>'}).join('')||'<div class="md-auth-note" style="margin-top:8px">Approve a device first. Its window permissions will appear here.</div>';
+}
+window.mdSaveDevicePermissions=async function(index){
+ if(!isOwner())return alert('Only Device A can change permissions.');const list=read('pos_multi_device_local_v2',[]),d=list[index];if(!d)return;
+ const pp=Array.from(document.querySelectorAll('[data-dev-perm="'+index+'"]:checked')).map(x=>x.dataset.perm);
+ try{await mdApi('set_permissions',{shopId:localStorage.getItem(SHOP_KEY),ownerToken:localStorage.getItem(OWNER_KEY),deviceId:d.id,permissions:pp,role:'sales'});d.permissions=pp;d.role='sales';write('pos_multi_device_local_v2',list);alert('Permissions saved for '+(d.name||d.id));renderAuthority();}
+ catch(e){alert('Permissions not saved: '+e.message)}
+};
+window.mdRevokeDevice=async function(index){
+ if(!isOwner())return alert('Only Device A can revoke devices.');const list=read('pos_multi_device_local_v2',[]),d=list[index];if(!d||!confirm('Revoke '+(d.name||d.id)+'?'))return;
+ try{await mdApi('revoke_device',{shopId:localStorage.getItem(SHOP_KEY),ownerToken:localStorage.getItem(OWNER_KEY),deviceId:d.id});list.splice(index,1);write('pos_multi_device_local_v2',list);renderAuthority();}
+ catch(e){alert('Revoke failed: '+e.message)}
+};
+window.mdPermission=has;window.mdIsOwner=isOwner;window.mdGetPermissions=perms;
+/* Approval now uses exactly the checked windows; no automatic all-access grant. */
+const oldApprove=window.multiDeviceApprove;
+window.multiDeviceApprove=async function(requestId){
+ if(!isOwner())return alert('Only Device A can approve devices.');const selected=selectedPermissions();
+ if(!selected.length)return alert('Select at least one window permission before approving this device.');
+ try{
+  await mdApi('approve_request',{shopId:localStorage.getItem(SHOP_KEY),ownerToken:localStorage.getItem(OWNER_KEY),requestId,role:'sales',authMode:'device_token',permissions:selected});
+  const list=read('pos_multi_device_local_v2',[]),d=list.find(x=>x.requestId===requestId);if(d){d.status='Approved';d.role='sales';d.permissions=selected;write('pos_multi_device_local_v2',list)}
+  alert('Device approved ✓\nRole: Sales Person\nPermissions: '+selected.join(', '));renderAuthority();
+ }catch(e){if(oldApprove&&/Cloud Sync is not configured/.test(e.message)){try{await oldApprove(requestId)}catch(x){alert('Approval failed: '+x.message)}}else alert('Approval failed: '+e.message)}
+};
+/* Keep the existing multi-device UI/navigation untouched; only authority state is gated. */
+const oldOpen=window.openMultiDeviceWindow;
+window.openMultiDeviceWindow=async function(){if(oldOpen)await oldOpen.apply(this,arguments);renderAuthority();if(!isOwner())document.querySelectorAll('#multi-device-window [onclick*="multiDeviceApprove"],#multi-device-window [onclick*="multiDeviceDeny"],#multi-device-window [onclick*="multiDeviceRefreshQr"],#multi-device-window [onclick*="multiDeviceCopyLink"]').forEach(x=>x.style.display='none');};
+/* Protect the actual entry functions without changing their internals. */
+const guards={openBilling:'billing',openPOSHistory:'history',openHistory:'history',openItemDatabase:'items',openSalesAnalytics:'analytics',openInvoiceButton:'invoice',openInvoiceCustomizer:'invoice',openPrinterPanel:'printer',openBarcodeStudio:'barcode',openBarcode:'barcode',openNotebook:'notebook',openCloudBackup:'cloud',openCloud:'cloud',openSettings:'settings'};
+function installGuards(){Object.keys(guards).forEach(fn=>{const perm=guards[fn],orig=window[fn];if(typeof orig!=='function'||orig.__mdGuarded)return;const wrapped=function(){if(!has(perm)){alert('Access denied. Device A has not granted '+perm+' permission to this device.');return false}return orig.apply(this,arguments)};wrapped.__mdGuarded=true;window[fn]=wrapped;});}
+/* Also stop direct inline navigation clicks when they identify a protected window. */
+document.addEventListener('click',function(e){if(isOwner())return;const el=e.target.closest('[onclick]');if(!el)return;const code=el.getAttribute('onclick')||'';for(const [fn,p] of Object.entries(guards)){if(code.includes(fn+'(')&&!has(p)){e.preventDefault();e.stopImmediatePropagation();alert('Access denied. Device A has not granted this window.');return false}}},true);
+/* Linked devices never retain an owner token. */
+if(localStorage.getItem(TOKEN_KEY)&&!localStorage.getItem(OWNER_KEY))localStorage.setItem(ROLE_KEY,'sales');
+window.addEventListener('load',()=>{setTimeout(()=>{installGuards();renderAuthority()},900);setTimeout(installGuards,2500);setInterval(installGuards,5000)});
+})();
+</script>
+
+
+<!-- MULTI-DEVICE MISSING-FEATURES PATCH ONLY: fixed A/B/C/D prefix, live device status, last sync/seen, bill conflict protection. -->
+<style id="md-missing-features-patch-style">
+.md-live-panel{margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px;background:var(--surface)}
+.md-live-title{font-size:11px;font-weight:900;margin-bottom:8px}.md-live-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:9px}.md-live-name{font-weight:900}.md-live-meta{color:var(--muted);font-size:8px}.md-live-dot{font-size:9px;white-space:nowrap}.md-conflict{margin-top:8px;padding:8px;border-radius:8px;border:1px solid #d97706;background:#fff7ed;color:#92400e;font-size:9px;font-weight:800}
+</style>
+<script id="multi-device-missing-features-patch">
+(function(){'use strict';
+const MD_DEV_KEY='pos_multi_device_local_v2';
+const MD_PREFIX_KEY='pos_multi_device_prefix_v1';
+const MD_CONFLICT_KEY='pos_multi_device_conflicts_v1';
+function mdRead(k,f){try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?f:v}catch(e){return f}}
+function mdWrite(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}}
+function mdEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function mdDevices(){const a=mdRead(MD_DEV_KEY,[]);return Array.isArray(a)?a:[]}
+function mdPrefixForIndex(i){return String.fromCharCode(66+Math.max(0,Math.min(24,i)))}
+function mdEnsureFixedPrefixes(){
+ const a=mdDevices(); let changed=false; const used=new Set();
+ a.forEach(d=>{const p=String(d.prefix||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,1);if(p)used.add(p)});
+ a.forEach((d,i)=>{if(!d.prefix){let p=mdPrefixForIndex(i);let n=0;while(used.has(p)&&n<26){n++;p=mdPrefixForIndex(i+n)};d.prefix=p;used.add(p);changed=true}});
+ if(changed)mdWrite(MD_DEV_KEY,a);
+ const me=localStorage.getItem('pos_multi_device_id_v1'); const mine=a.find(x=>String(x.id)===String(me));
+ if(mine?.prefix)localStorage.setItem(MD_PREFIX_KEY,String(mine.prefix).toUpperCase());
+ return a;
+}
+function mdStatus(d){
+ const last=Number(d.lastSeen||d.last_seen_at||d.lastSync||d.last_sync_at||0); const now=Date.now();
+ if(d.syncing)return ['🟡','Syncing'];
+ if(last&&now-last<30000)return ['🟢','Online'];
+ return ['🔴','Offline'];
+}
+function mdAge(v){if(!v)return 'Never';const sec=Math.max(0,Math.floor((Date.now()-Number(v))/1000));if(sec<60)return sec+' sec ago';if(sec<3600)return Math.floor(sec/60)+' min ago';return Math.floor(sec/3600)+' hr ago'}
+function mdInstallPanel(){
+ const host=document.querySelector('#multi-device-window .md-card:nth-child(2)');if(!host||document.getElementById('md-live-device-panel'))return;
+ const p=document.createElement('div');p.id='md-live-device-panel';p.className='md-live-panel';host.appendChild(p);
+}
+function mdRenderLive(){
+ mdInstallPanel();const p=document.getElementById('md-live-device-panel');if(!p)return;const a=mdEnsureFixedPrefixes();
+ p.innerHTML='<div class="md-live-title">DEVICES • LIVE STATUS</div>'+(a.length?a.map(d=>{const st=mdStatus(d),last=d.lastSeen||d.last_seen_at||d.lastSync||d.last_sync_at||0;return '<div class="md-live-row"><div><div class="md-live-name">'+mdEsc(d.prefix||'')+' • '+mdEsc(d.name||'Sales Device')+'</div><div class="md-live-meta">Last seen: '+mdEsc(mdAge(last))+' • Last sync: '+mdEsc(d.lastSyncText||mdAge(d.lastSync||d.last_sync_at||0))+'</div></div><div class="md-live-dot">'+st[0]+' '+st[1]+'</div></div>'}).join(''):'<div class="md-live-meta">No linked devices.</div>');
+ const c=mdRead(MD_CONFLICT_KEY,[]); if(c.length)p.innerHTML+='<div class="md-conflict">⚠ '+c.length+' bill conflict'+(c.length===1?'':'s')+' need attention. Old data was not silently overwritten.</div>';
+}
+function mdStamp(){return Date.now()}
+function mdMarkLocalSync(){const id=localStorage.getItem('pos_multi_device_id_v1');if(!id)return;const a=mdDevices(),d=a.find(x=>String(x.id)===String(id));if(d){d.lastSeen=mdStamp();d.lastSync=mdStamp();d.syncing=false;mdWrite(MD_DEV_KEY,a);mdRenderLive()}}
+function mdMarkOnline(){const id=localStorage.getItem('pos_multi_device_id_v1');if(!id)return;const a=mdDevices(),d=a.find(x=>String(x.id)===String(id));if(d){d.lastSeen=mdStamp();d.syncing=false;mdWrite(MD_DEV_KEY,a);mdRenderLive()}}
+window.addEventListener('online',mdMarkOnline);window.addEventListener('focus',mdMarkOnline);setInterval(mdMarkOnline,10000);
+const oldEnqueue=window.posCloudSync?.enqueueBill;
+if(oldEnqueue){window.posCloudSync.enqueueBill=function(h){
+ try{
+  const row={...h};const current=Number(row.revision||row._revision||0);row.revision=current+1;row._revision=row.revision;
+  const hist=typeof getHistory==='function'?getHistory('pos'):[];const idx=hist.findIndex(x=>String(x.id||'')===String(h.id||'')||String(x.bill||'')===String(h.bill||''));if(idx>=0){hist[idx]={...hist[idx],revision:row.revision,_revision:row.revision};localStorage.setItem(typeof POS_BILLING_HISTORY_KEY!=='undefined'?POS_BILLING_HISTORY_KEY:'pos_billing_history',JSON.stringify(hist.slice(0,2000)))}
+  mdMarkOnline();return oldEnqueue(row);
+ }catch(e){return oldEnqueue(h)}
+}}
+const oldTrigger=window.posCloudSync?.trigger;if(oldTrigger){window.posCloudSync.trigger=async function(){const id=localStorage.getItem('pos_multi_device_id_v1'),a=mdDevices(),d=a.find(x=>String(x.id)===String(id));if(d){d.syncing=true;d.lastSeen=mdStamp();mdWrite(MD_DEV_KEY,a);mdRenderLive()}try{const r=await oldTrigger();mdMarkLocalSync();return r}catch(e){mdMarkOnline();throw e}}}
+const oldRender=window.openMultiDeviceWindow;
+window.openMultiDeviceWindow=async function(){const r=oldRender?await oldRender.apply(this,arguments):undefined;mdEnsureFixedPrefixes();mdRenderLive();return r};
+/* Conflict protection is handled in the sync shell's applyRemote() above. */
+})();
+</script>
+
+
+<!-- TRUE SERVER-SIDE DEVICE STATUS PATCH: heartbeat + server status polling only. -->
+<style id="md-server-status-style">
+#md-live-device-panel .md-server-badge{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:7px;font-size:8px;font-weight:900;background:var(--surface2);color:var(--muted)}
+#md-live-device-panel .md-server-badge.live{color:#168a45}
+#md-live-device-panel .md-server-badge.err{color:#d33b3b}
+</style>
+<script id="md-server-status-patch">
+(function(){'use strict';
+ const CFG_KEY='pos_multi_device_config_v1',SHOP_KEY='pos_multi_device_shop_id_v1',TOKEN_KEY='pos_multi_device_device_token_v1',OWNER_KEY='pos_multi_device_owner_token_v1',DEVICE_ID_KEY='pos_multi_device_id_v1',MD_DEV_KEY='pos_multi_device_local_v2';
+ const cfg=()=>{try{return JSON.parse(localStorage.getItem(CFG_KEY)||'{}')}catch(e){return{}}};
+ const shop=()=>localStorage.getItem(SHOP_KEY)||'';
+ const deviceId=()=>localStorage.getItem(DEVICE_ID_KEY)||'';
+ const isOwner=()=>!!localStorage.getItem(OWNER_KEY);
+ const fmt=v=>{if(!v)return 'Never';const d=new Date(v);return isNaN(d)?'Never':d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});};
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function readLocal(){try{const v=JSON.parse(localStorage.getItem(MD_DEV_KEY)||'[]');return Array.isArray(v)?v:[]}catch(e){return[]}}
+ function writeLocal(a){try{localStorage.setItem(MD_DEV_KEY,JSON.stringify(a))}catch(e){}}
+ async function rpc(name,body){const c=cfg();if(!/^https:\/\//i.test(c.url)||!c.key)throw new Error('Cloud Sync is not configured');const r=await fetch(c.url+'/rest/v1/rpc/'+name,{method:'POST',headers:{'Content-Type':'application/json','apikey':c.key,'Authorization':'Bearer '+c.key},body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok||d?.ok===false)throw new Error(d?.error||('HTTP '+r.status));return d;}
+ function markLocalFromServer(rows,owner){
+   const local=readLocal();
+   const all=[];
+   if(owner?.device_id){
+     const a=local.find(x=>String(x.id||'')===String(owner.device_id));
+     all.push({...a,id:owner.device_id,name:owner.device_name||a?.name||'ADMIN',prefix:'A',serverStatus:owner.status||'approved',lastSeenServer:owner.last_seen_at||null,lastSyncServer:owner.last_sync_at||null,serverOnline:!!owner.online});
+   }
+   (Array.isArray(rows)?rows:[]).forEach(x=>{
+     const a=local.find(y=>String(y.id||'')===String(x.device_id));
+     all.push({...a,id:x.device_id,name:x.device_name||a?.name||('SALES '+x.prefix),prefix:x.prefix,serverStatus:x.status,lastSeenServer:x.last_seen_at||null,lastSyncServer:x.last_sync_at||null,serverOnline:!!x.online});
+   });
+   const pending=local.filter(x=>x.status==='Pending approval'&&!all.some(y=>String(y.id)===String(x.id)));all.push(...pending);writeLocal(all);
+   const me=all.find(x=>String(x.id)===deviceId());if(me?.prefix)localStorage.setItem('pos_multi_device_prefix_v1',String(me.prefix));
+   return all;
+ }
+ function renderServerRows(panel,d){
+   const rows=[];const owner=d?.owner;if(owner)rows.push(owner);
+   if(Array.isArray(d?.devices))rows.push(...d.devices);
+   const local=markLocalFromServer(d?.devices,owner);
+   const byId=new Map(local.map(x=>[String(x.id),x]));
+   panel.innerHTML='<div class="md-live-title">DEVICES • LIVE STATUS <span class="md-server-badge live">SERVER LIVE • '+esc(fmt(d.server_time))+'</span></div>'+
+     (rows.length?rows.map(x=>{
+       const revoked=String(x.status||'').toLowerCase()==='revoked';
+       const online=!!x.online&&!revoked;
+       const icon=revoked?'🔴':online?'🟢':'🔴';
+       const state=revoked?'REVOKED':online?'Online':'Offline';
+       const local=byId.get(String(x.device_id))||{};
+       const prefix=x.prefix||local.prefix||'';
+       const label=(prefix?prefix+' • ':'')+(x.device_name||local.name||x.device_id||'Device');
+       return '<div class="md-live-row" data-device-id="'+esc(x.device_id||'')+'"><div><div class="md-live-name">'+esc(label)+'</div><div class="md-live-meta">Device ID: '+esc(x.device_id||'')+' • Last seen: '+esc(fmt(x.last_seen_at))+' • Last sync: '+esc(fmt(x.last_sync_at))+'</div></div><div class="md-live-dot">'+icon+' '+state+'</div></div>';
+     }).join(''):'<div class="md-live-meta">No server devices found.</div>');
+   const c=mdRead(typeof MD_CONFLICT_KEY!=='undefined'?MD_CONFLICT_KEY:'pos_multi_device_conflicts_v1',[]);if(c.length)panel.innerHTML+='<div class="md-conflict">⚠ '+c.length+' bill conflict'+(c.length===1?'':'s')+' need attention. Old data was not silently overwritten.</div>';
+ }
+ async function heartbeat(isSync){const sid=shop();if(!sid)return null;try{const d=await rpc('pos_device_heartbeat',{p_shop_id:sid,p_device_id:deviceId(),p_device_token:localStorage.getItem(TOKEN_KEY)||'',p_owner_token:isOwner()?(localStorage.getItem(OWNER_KEY)||''):null,p_is_sync:!!isSync});if(d&&!d.ok&&localStorage.getItem(TOKEN_KEY)){localStorage.removeItem(TOKEN_KEY);alert('Device access revoked by Admin.\nCloud access is blocked.');throw new Error('Device access revoked by Admin');}return d}catch(e){if(/revoked|Unauthorized|access revoked/i.test(String(e.message||e)))return null;return null}}
+ async function refreshServer(){if(!isOwner())return;const panel=document.getElementById('md-live-device-panel');if(!panel)return;try{const d=await rpc('pos_device_status',{p_shop_id:shop(),p_owner_token:localStorage.getItem(OWNER_KEY)||''});if(!d?.ok)throw new Error('Unauthorized');renderServerRows(panel,d)}catch(e){const title=panel.querySelector('.md-live-title');if(title){let b=title.querySelector('.md-server-badge');if(!b){b=document.createElement('span');title.appendChild(b)}b.textContent='SERVER OFFLINE';b.className='md-server-badge err'}}}
+ let busy=false;async function tick(sync){if(busy)return;busy=true;try{await heartbeat(!!sync);await refreshServer()}finally{busy=false}}
+ window.__mdServerHeartbeat=()=>tick(true);
+ window.addEventListener('online',()=>tick(false));window.addEventListener('focus',()=>tick(false));
+ window.addEventListener('load',()=>{setTimeout(()=>tick(false),1500);setInterval(()=>tick(false),10000)});
+ const oldOpen=window.openMultiDeviceWindow;if(oldOpen&&!oldOpen.__mdServerWrapped){const w=async function(){const r=await oldOpen.apply(this,arguments);setTimeout(()=>tick(false),250);return r};w.__mdServerWrapped=true;window.openMultiDeviceWindow=w;}
+ const oldTrigger=window.posCloudSync?.trigger;if(oldTrigger&&!oldTrigger.__mdServerWrapped){const w=async function(){await tick(false);try{return await oldTrigger.apply(this,arguments)}finally{await tick(true)}};w.__mdServerWrapped=true;if(window.posCloudSync)window.posCloudSync.trigger=w;}
 })();
 </script>
 </body>
