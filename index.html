@@ -12567,7 +12567,13 @@ function saveCfg(){const c={url:String($('md-api-url')?.value||'').trim().replac
 function shop(){let x=localStorage.getItem(SHOP_KEY);if(!x){x='SHOP-'+Math.random().toString(36).slice(2,10).toUpperCase();try{localStorage.setItem(SHOP_KEY,x)}catch(e){}}return x}
 function deviceId(){let x=localStorage.getItem(DEVICE_ID_KEY);if(!x){x='DEV-'+crypto.randomUUID().replace(/-/g,'').slice(0,12).toUpperCase();localStorage.setItem(DEVICE_ID_KEY,x)}return x}
 function deviceName(){return (navigator.userAgentData?.mobile?'Phone':'Browser')+' • '+location.hostname}
-function setSalesDeviceAuth(){try{localStorage.setItem(DEVICE_ROLE_KEY,'sales');localStorage.setItem(DEVICE_AUTH_MODE_KEY,'device_token');localStorage.removeItem(OWNER_KEY)}catch(e){}}
+function setSalesDeviceAuth(){try{
+  /* Never destroy Device A's owner credential. This function is for linked devices only. */
+  if(localStorage.getItem(OWNER_KEY)) return false;
+  localStorage.setItem(DEVICE_ROLE_KEY,'sales');
+  localStorage.setItem(DEVICE_AUTH_MODE_KEY,'device_token');
+  return true;
+}catch(e){return false}}
 function isSalesDevice(){return localStorage.getItem(DEVICE_ROLE_KEY)==='sales'&&localStorage.getItem(DEVICE_AUTH_MODE_KEY)==='device_token'}
 function hasDeviceToken(){return !!localStorage.getItem(TOKEN_KEY)}
 function salesAuthLabel(){return isSalesDevice()&&hasDeviceToken()?'SALES • Device Token':'Not linked'}
@@ -12862,7 +12868,7 @@ function ensurePanel(){
 }
 function renderPendingAuthority(){
  const box=$('md-auth-pending');if(!box)return;
- if(!isOwner()){box.innerHTML='';return}
+ if(hasDeviceToken()&&!isOwner()){box.innerHTML='';return}
  const list=read('pos_multi_device_local_v2',[]);
  const pending=list.filter(d=>d&&String(d.status||'').toLowerCase()==='pending approval');
  box.innerHTML=pending.map(d=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(d.id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(d.requestId||d.id||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(d.requestId||d.id||'')+'\')">DENY</button></div></div>').join('')||'<div class="md-auth-note">No pending device requests.</div>';
@@ -12870,7 +12876,7 @@ function renderPendingAuthority(){
 function renderAuthority(){
  ensurePanel();const panel=$('md-authority-panel');if(!panel)return;panel.classList.add('open');panel.style.display='block';const own=isOwner();
  const badge=$('md-auth-badge');if(badge)badge.textContent=own?'DEVICE A • ADMIN':'DEVICE • '+(role()==='sales'?'SALES':'LINKED');
- const note=$('md-auth-note');if(note)note.textContent=own?'Select window permissions before approving a device. Device A can approve/deny, save permissions and revoke linked devices. Device B/C never receive the owner credential.':'This device is linked by Device A. Admin actions are unavailable.';
+ const note=$('md-auth-note');if(note)note.innerHTML=own?'Select window permissions before approving a device. Device A can approve/deny, save permissions and revoke linked devices. Device B/C never receive the owner credential.':'⚠️ ADMIN TOKEN NOT DETECTED — If this is Device A, use <b>RECOVER ADMIN TOKEN</b> below. Linked Device B/C should not use admin controls.';
  const box=$('md-auth-permissions');
  const title=$('md-auth-permission-title');
  if(own){
@@ -12882,10 +12888,12 @@ function renderAuthority(){
  }
  renderPendingAuthority();
  renderDevicePermissionCards();
- if(!own){const q=document.querySelector('#multi-device-window .md-card:first-child');if(q)q.style.display='none';const n=document.querySelector('#multi-device-window .md-note');if(n)n.style.display='none';}
+ /* Never hide the QR/cloud card. A missing owner token must not make Device A look like Device B. */
+ const q=document.querySelector('#multi-device-window .md-card:first-child');if(q)q.style.display='block';
+ const notes=document.querySelectorAll('#multi-device-window .md-note');notes.forEach(n=>n.style.display='block');
 }
 function renderDevicePermissionCards(){
- const box=$('md-auth-device-list');if(!box)return;if(!isOwner()){box.innerHTML='';return}
+ const box=$('md-auth-device-list');if(!box)return;if(hasDeviceToken()&&!isOwner()){box.innerHTML='';return}
  const list=read('pos_multi_device_local_v2',[]);const real=list.filter(d=>d&&d.status&&String(d.status).toLowerCase()!=='pending approval');
  box.innerHTML=real.map((d,i)=>{const pp=Array.isArray(d.permissions)?d.permissions:[];return '<div class="md-device-perm-card"><div class="md-device-perm-head"><div><div class="md-device-perm-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-perm-meta">'+esc(d.id||'')+' • '+esc(d.status||'Linked')+'</div></div><span class="md-auth-badge">SALES</span></div><div class="md-perm-list">'+PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" data-dev-perm="'+i+'" data-perm="'+x[0]+'" '+(pp.includes(x[0])?'checked':'')+'> '+x[1]+'</label>').join('')+'</div><div class="md-perm-actions"><button type="button" onclick="window.mdSaveDevicePermissions('+i+')">SAVE PERMISSIONS</button><button type="button" class="secondary" onclick="window.mdRevokeDevice('+i+')">REVOKE</button></div></div>'}).join('')||'<div class="md-auth-note" style="margin-top:8px">Approve a device first. Its window permissions will appear here.</div>';
 }
@@ -12914,7 +12922,14 @@ window.multiDeviceApprove=async function(requestId){
 };
 /* Keep the existing multi-device UI/navigation untouched; only authority state is gated. */
 const oldOpen=window.openMultiDeviceWindow;
-window.openMultiDeviceWindow=async function(){if(oldOpen)await oldOpen.apply(this,arguments);renderAuthority();if(!isOwner())document.querySelectorAll('#multi-device-window [onclick*="multiDeviceApprove"],#multi-device-window [onclick*="multiDeviceDeny"],#multi-device-window [onclick*="multiDeviceRefreshQr"],#multi-device-window [onclick*="multiDeviceCopyLink"]').forEach(x=>x.style.display='none');};
+window.openMultiDeviceWindow=async function(){
+ if(oldOpen)await oldOpen.apply(this,arguments);
+ renderAuthority();
+ const salesLinked=hasDeviceToken()&&!isOwner();
+ if(salesLinked)document.querySelectorAll('#multi-device-window [onclick*="multiDeviceApprove"],#multi-device-window [onclick*="multiDeviceDeny"],#multi-device-window [onclick*="multiDeviceRefreshQr"],#multi-device-window [onclick*="multiDeviceCopyLink"]').forEach(x=>x.style.display='none');
+ const rec=document.querySelector('#multi-device-window [onclick*="multiDeviceOwnerRecovery"]');
+ if(rec)rec.style.display='inline-flex';
+};
 /* Protect the actual entry functions without changing their internals. */
 const guards={openBilling:'billing',openPOSHistory:'history',openHistory:'history',openItemDatabase:'items',openSalesAnalytics:'analytics',openInvoiceButton:'invoice',openInvoiceCustomizer:'invoice',openPrinterPanel:'printer',openBarcodeStudio:'barcode',openBarcode:'barcode',openNotebook:'notebook',openCloudBackup:'cloud',openCloud:'cloud',openSettings:'settings'};
 function installGuards(){Object.keys(guards).forEach(fn=>{const perm=guards[fn],orig=window[fn];if(typeof orig!=='function'||orig.__mdGuarded)return;const wrapped=function(){if(!has(perm)){alert('Access denied. Device A has not granted '+perm+' permission to this device.');return false}return orig.apply(this,arguments)};wrapped.__mdGuarded=true;window[fn]=wrapped;});}
@@ -13039,13 +13054,41 @@ window.openMultiDeviceWindow=async function(){const r=oldRender?await oldRender.
    const c=mdRead(typeof MD_CONFLICT_KEY!=='undefined'?MD_CONFLICT_KEY:'pos_multi_device_conflicts_v1',[]);if(c.length)panel.innerHTML+='<div class="md-conflict">⚠ '+c.length+' bill conflict'+(c.length===1?'':'s')+' need attention. Old data was not silently overwritten.</div>';
  }
  async function heartbeat(isSync){const sid=shop();if(!sid)return null;try{const d=await rpc('pos_device_heartbeat',{p_shop_id:sid,p_device_id:deviceId(),p_device_token:localStorage.getItem(TOKEN_KEY)||'',p_owner_token:isOwner()?(localStorage.getItem(OWNER_KEY)||''):null,p_is_sync:!!isSync});if(d&&!d.ok&&localStorage.getItem(TOKEN_KEY)){localStorage.removeItem(TOKEN_KEY);alert('Device access revoked by Admin.\nCloud access is blocked.');throw new Error('Device access revoked by Admin');}return d}catch(e){if(/revoked|Unauthorized|access revoked/i.test(String(e.message||e)))return null;return null}}
- async function refreshServer(){if(!isOwner())return;const panel=document.getElementById('md-live-device-panel');if(!panel)return;try{const d=await rpc('pos_device_status',{p_shop_id:shop(),p_owner_token:localStorage.getItem(OWNER_KEY)||''});if(!d?.ok)throw new Error('Unauthorized');renderServerRows(panel,d)}catch(e){const title=panel.querySelector('.md-live-title');if(title){let b=title.querySelector('.md-server-badge');if(!b){b=document.createElement('span');title.appendChild(b)}b.textContent='SERVER OFFLINE';b.className='md-server-badge err'}}}
+ async function refreshServer(){const panel=document.getElementById('md-live-device-panel');if(!panel)return;
+   if(!isOwner()){
+     const title=panel.querySelector('.md-live-title');
+     if(title){let b=title.querySelector('.md-server-badge');if(!b){b=document.createElement('span');title.appendChild(b)}b.textContent='ADMIN TOKEN REQUIRED';b.className='md-server-badge err'}
+     return;
+   }
+   try{const d=await rpc('pos_device_status',{p_shop_id:shop(),p_owner_token:localStorage.getItem(OWNER_KEY)||''});if(!d?.ok)throw new Error('Unauthorized');renderServerRows(panel,d)}catch(e){const title=panel.querySelector('.md-live-title');if(title){let b=title.querySelector('.md-server-badge');if(!b){b=document.createElement('span');title.appendChild(b)}b.textContent='SERVER OFFLINE';b.className='md-server-badge err'}}}
  let busy=false;async function tick(sync){if(busy)return;busy=true;try{await heartbeat(!!sync);await refreshServer()}finally{busy=false}}
  window.__mdServerHeartbeat=()=>tick(true);
  window.addEventListener('online',()=>tick(false));window.addEventListener('focus',()=>tick(false));
  window.addEventListener('load',()=>{setTimeout(()=>tick(false),1500);setInterval(()=>tick(false),10000)});
  const oldOpen=window.openMultiDeviceWindow;if(oldOpen&&!oldOpen.__mdServerWrapped){const w=async function(){const r=await oldOpen.apply(this,arguments);setTimeout(()=>tick(false),250);return r};w.__mdServerWrapped=true;window.openMultiDeviceWindow=w;}
  const oldTrigger=window.posCloudSync?.trigger;if(oldTrigger&&!oldTrigger.__mdServerWrapped){const w=async function(){await tick(false);try{return await oldTrigger.apply(this,arguments)}finally{await tick(true)}};w.__mdServerWrapped=true;if(window.posCloudSync)window.posCloudSync.trigger=w;}
+})();
+</script>
+
+<!-- MULTI-DEVICE DEVICE-A CONTROL / STATUS FIX -->
+<script id="md-device-a-control-fix">
+(function(){'use strict';
+ const OWNER='pos_multi_device_owner_token_v1',TOKEN='pos_multi_device_device_token_v1';
+ const $=id=>document.getElementById(id);
+ function isA(){return !!localStorage.getItem(OWNER)||!localStorage.getItem(TOKEN)}
+ function ensure(){try{
+  const panel=$('md-authority-panel');
+  if(panel&&isA()){
+   panel.classList.add('open');panel.style.display='block';panel.style.visibility='visible';panel.style.opacity='1';
+   const note=$('md-auth-note');
+   if(note&&!localStorage.getItem(OWNER))note.innerHTML='⚠️ <b>Device A detected, but Admin Token is missing.</b><br>Use <b>RECOVER ADMIN TOKEN</b> in Linked Devices → Cloud Setup. After recovery, APPROVE / DENY / REVOKE and live server status will activate.';
+   const rec=document.querySelector('#multi-device-window [onclick*="multiDeviceOwnerRecovery"]');if(rec)rec.style.display='inline-flex';
+  }
+  if(typeof window.renderAuthority==='function')window.renderAuthority();
+ }catch(e){}}
+ function refresh(){try{if(localStorage.getItem(OWNER)&&typeof window.refreshServer==='function')window.refreshServer();if(typeof window.mdRenderLive==='function')window.mdRenderLive()}catch(e){}}
+ window.addEventListener('load',()=>{setTimeout(ensure,700);setTimeout(ensure,1800);setTimeout(refresh,2200);setInterval(()=>{ensure();refresh()},8000)});
+ window.addEventListener('focus',()=>{ensure();refresh()});
 })();
 </script>
 </body>
