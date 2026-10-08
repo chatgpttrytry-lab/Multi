@@ -12623,7 +12623,7 @@ window.multiDeviceOwnerRecovery=async function(){
 };
 window.multiDeviceSaveConfig=async function(){saveCfg();renderQr();if(await ensureShop()){await refreshOwnerData();await pushPending();await pull()}else render()};
 window.multiDeviceAuthStatus=function(){return {role:role(),authMode:owner()?'owner_token':(hasDeviceToken()?'device_token':'none'),deviceId:deviceId(),deviceTokenLinked:hasDeviceToken(),ownerLinked:owner()};};
-async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){if(!a.some(x=>x.requestId===r.id))a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render()}catch(e){}}
+async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old){old.id=r.device_id;old.name=r.device_name;old.status='Pending approval';}else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority()}catch(e){}}
 window.multiDeviceApprove=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return alert('Owner token is not available on this device.');try{await api('approve_request',{shopId:shop(),ownerToken:owner,requestId,role:'sales'});status('Device approved ✓ • SALES uses Device Token only',true);await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority();}catch(e){alert(e.message)}};
 window.multiDeviceDeny=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{await api('deny_request',{shopId:shop(),ownerToken:owner,requestId});await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority()}catch(e){alert(e.message)}};
 async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old)old.status='Pending approval';else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){status('Owner check failed',false)}}
@@ -13048,7 +13048,43 @@ window.openMultiDeviceWindow=async function(){const r=oldRender?await oldRender.
  const oldTrigger=window.posCloudSync?.trigger;if(oldTrigger&&!oldTrigger.__mdServerWrapped){const w=async function(){await tick(false);try{return await oldTrigger.apply(this,arguments)}finally{await tick(true)}};w.__mdServerWrapped=true;if(window.posCloudSync)window.posCloudSync.trigger=w;}
 })();
 </script>
-</body>
+<!-- DEVICE A/B APPROVAL SYNC PATCH ONLY: keeps pending APPROVE / DENY buttons in sync with cloud. -->\n<script id="multi-device-approval-sync-patch">
+(function(){'use strict';
+ const OWNER_KEY='pos_multi_device_owner_token_v1',SHOP_KEY='pos_multi_device_shop_id_v1',DEV_KEY='pos_multi_device_local_v2';
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const read=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?f:v}catch(e){return f}};
+ const write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+ function render(rows){
+   const box=document.getElementById('md-auth-pending');
+   if(!box)return;
+   const a=Array.isArray(rows)?rows:[];
+   box.innerHTML=a.map(r=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name||r.name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(r.device_id||r.id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(r.id||r.requestId||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(r.id||r.requestId||'')+'\')">DENY</button></div></div>').join('')||'<div class="md-auth-note">No pending device requests.</div>';
+ }
+ async function sync(){
+   const owner=localStorage.getItem(OWNER_KEY);
+   const box=document.getElementById('md-auth-pending');
+   if(!owner||!box||!window.__mdApi)return;
+   try{
+     const d=await window.__mdApi('pending_requests',{shopId:localStorage.getItem(SHOP_KEY)||'',ownerToken:owner});
+     const rows=Array.isArray(d?.requests)?d.requests:[];
+     const old=read(DEV_KEY,[]).filter(x=>x&&String(x.status||'').toLowerCase()!=='pending approval');
+     rows.forEach(r=>old.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id}));
+     write(DEV_KEY,old);
+     render(rows);
+   }catch(e){
+     /* Keep existing UI untouched when cloud is unavailable. */
+   }
+ }
+ window.__mdSyncApprovalButtons=sync;
+ window.addEventListener('load',()=>{
+   setTimeout(sync,1200);
+   setInterval(()=>{
+     const o=document.getElementById('multi-device-overlay');
+     if(o?.classList.contains('open'))sync();
+   },3000);
+ });
+})();
+</script>\n\n</body>
 </html>
 
 <!-- MULTI-DEVICE AUTHORITY RENDER SAFETY PATCH -->
