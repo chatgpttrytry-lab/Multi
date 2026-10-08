@@ -12624,9 +12624,9 @@ window.multiDeviceOwnerRecovery=async function(){
 window.multiDeviceSaveConfig=async function(){saveCfg();renderQr();if(await ensureShop()){await refreshOwnerData();await pushPending();await pull()}else render()};
 window.multiDeviceAuthStatus=function(){return {role:role(),authMode:owner()?'owner_token':(hasDeviceToken()?'device_token':'none'),deviceId:deviceId(),deviceTokenLinked:hasDeviceToken(),ownerLinked:owner()};};
 async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){if(!a.some(x=>x.requestId===r.id))a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render()}catch(e){}}
-window.multiDeviceApprove=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return alert('Owner token is not available on this device.');try{await api('approve_request',{shopId:shop(),ownerToken:owner,requestId,role:'sales'});status('Device approved ✓ • SALES uses Device Token only',true);await refreshOwnerData();}catch(e){alert(e.message)}};
-window.multiDeviceDeny=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{await api('deny_request',{shopId:shop(),ownerToken:owner,requestId});await refreshOwnerData()}catch(e){alert(e.message)}};
-async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old)old.status='Pending approval';else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){status('Owner check failed',false)}}
+window.multiDeviceApprove=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return alert('Owner token is not available on this device.');try{await api('approve_request',{shopId:shop(),ownerToken:owner,requestId,role:'sales'});status('Device approved ✓ • SALES uses Device Token only',true);await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority();}catch(e){alert(e.message)}};
+window.multiDeviceDeny=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{await api('deny_request',{shopId:shop(),ownerToken:owner,requestId});await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority()}catch(e){alert(e.message)}};
+async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old)old.status='Pending approval';else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){status('Owner check failed',false)}}
 const SETUP_SQL = `create table if not exists public.pos_sync_shops(id uuid primary key default gen_random_uuid(),shop_id text not null unique,owner_token_hash text not null,owner_device_id text not null,owner_device_name text not null default 'Main Device',created_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_devices(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',device_token_hash text not null,permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',status text not null default 'approved' check(status in('approved','revoked')),approved_at timestamptz,last_seen_at timestamptz,created_at timestamptz not null default now(),unique(shop_id,device_id),unique(device_token_hash));\ncreate table if not exists public.pos_sync_pair_requests(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',status text not null default 'pending' check(status in('pending','approved','denied')),permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',device_token text,created_at timestamptz not null default now(),updated_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_events(seq bigint generated always as identity primary key,shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,event_id text not null,device_id text not null,event_type text not null,entity_id text not null,payload jsonb not null default '{}'::jsonb,client_time timestamptz,created_at timestamptz not null default now(),unique(shop_id,event_id));\ncreate index if not exists pos_sync_events_shop_seq_idx on public.pos_sync_events(shop_id,seq);\ncreate index if not exists pos_sync_pair_requests_pending_idx on public.pos_sync_pair_requests(shop_id,status,created_at);\nalter table public.pos_sync_shops enable row level security; alter table public.pos_sync_devices enable row level security; alter table public.pos_sync_pair_requests enable row level security; alter table public.pos_sync_events enable row level security;\nrevoke all on public.pos_sync_shops from anon,authenticated; revoke all on public.pos_sync_devices from anon,authenticated; revoke all on public.pos_sync_pair_requests from anon,authenticated; revoke all on public.pos_sync_events from anon,authenticated;
 create extension if not exists pgcrypto;
 alter table public.pos_sync_shops add column if not exists owner_last_seen_at timestamptz;
@@ -12821,12 +12821,13 @@ window.addEventListener('online',()=>{pushPending();pull()});window.addEventList
 
 <!-- MULTI-DEVICE AUTHORITY + WINDOW PERMISSIONS ADD-ON -->
 <style id="multi-device-authority-addon-css">
-#md-authority-panel{margin-top:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:11px;display:none}
-#md-authority-panel.open{display:block}
-.md-auth-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.md-auth-title{font-size:12px;font-weight:950}.md-auth-badge{font-size:9px;font-weight:900;padding:4px 7px;border-radius:8px;background:var(--blue2);color:var(--blue)}
-.md-auth-note{font-size:9px;color:var(--muted);line-height:1.45;margin-top:5px}.md-perm-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}.md-perm-row{display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);font-size:10px;font-weight:800}.md-perm-row input{accent-color:var(--blue)}
-.md-device-perm-card{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:9px;margin-top:7px}.md-device-perm-head{display:flex;align-items:center;justify-content:space-between;gap:7px}.md-device-perm-name{font-size:10px;font-weight:900}.md-device-perm-meta{font-size:8px;color:var(--muted);margin-top:2px}.md-perm-actions{display:flex;gap:5px;margin-top:7px}.md-perm-actions button{height:29px;border:0;border-radius:8px;padding:0 8px;background:var(--blue);color:#fff;font-size:9px;font-weight:900}.md-perm-actions button.secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
-@media(max-width:600px){.md-perm-list{grid-template-columns:1fr}}
+#md-authority-panel{margin-top:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:11px;display:none;overflow:visible;max-height:none}
+#md-authority-panel.open{display:block!important}
+.md-auth-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.md-auth-title{font-size:12px;font-weight:950}.md-auth-badge{font-size:9px;font-weight:900;padding:4px 7px;border-radius:8px;background:var(--blue2);color:var(--blue);white-space:nowrap}
+.md-auth-note{font-size:9px;color:var(--muted);line-height:1.45;margin-top:5px}.md-auth-section-title{font-size:9px;font-weight:950;margin-top:11px;color:var(--muted);letter-spacing:.3px}.md-perm-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px}.md-perm-row{display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);font-size:10px;font-weight:800;min-height:32px}.md-perm-row input{accent-color:var(--blue);width:15px;height:15px;flex:0 0 auto}
+.md-auth-pending{display:grid;gap:7px;margin-top:7px}.md-pending-row{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)}.md-pending-actions{display:flex;gap:5px;flex-wrap:wrap}.md-pending-actions .md-btn,.md-pending-actions .md-device-remove{height:29px!important;min-height:29px!important;padding:0 9px!important;white-space:nowrap}
+.md-device-perm-card{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:9px;margin-top:7px}.md-device-perm-head{display:flex;align-items:center;justify-content:space-between;gap:7px}.md-device-perm-name{font-size:10px;font-weight:900}.md-device-perm-meta{font-size:8px;color:var(--muted);margin-top:2px}.md-perm-actions{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}.md-perm-actions button{height:29px;border:0;border-radius:8px;padding:0 8px;background:var(--blue);color:#fff;font-size:9px;font-weight:900}.md-perm-actions button.secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+@media(max-width:600px){.md-perm-list{grid-template-columns:1fr}.md-pending-row{align-items:flex-start;flex-direction:column}.md-pending-actions{width:100%}.md-pending-actions .md-btn,.md-pending-actions .md-device-remove{flex:1}}
 </style>
 <script id="multi-device-authority-addon">
 (function(){
@@ -12854,15 +12855,32 @@ async function mdApi(action,payload){
 window.__mdApi=mdApi;
 function ensurePanel(){
  const card=document.querySelector('#multi-device-window .md-card:nth-child(2)'); if(!card||$('md-authority-panel'))return;
- const p=document.createElement('div');p.id='md-authority-panel';p.innerHTML='<div class="md-auth-head"><div class="md-auth-title">🔐 Device Authority & Window Permissions</div><span id="md-auth-badge" class="md-auth-badge"></span></div><div id="md-auth-note" class="md-auth-note"></div><div id="md-auth-permissions" class="md-perm-list"></div><div id="md-auth-device-list"></div>';card.appendChild(p);
+ const p=document.createElement('div');
+ p.id='md-authority-panel';
+ p.innerHTML='<div class="md-auth-head"><div class="md-auth-title">🔐 Device Authority & Window Permissions</div><span id="md-auth-badge" class="md-auth-badge"></span></div><div id="md-auth-note" class="md-auth-note"></div><div id="md-auth-permission-title" class="md-auth-section-title">WINDOW PERMISSIONS FOR NEXT DEVICE</div><div id="md-auth-permissions" class="md-perm-list"></div><div class="md-auth-section-title">PENDING DEVICE APPROVALS</div><div id="md-auth-pending" class="md-auth-pending"></div><div class="md-auth-section-title">LINKED DEVICE PERMISSIONS</div><div id="md-auth-device-list"></div>';
+ card.appendChild(p);
+}
+function renderPendingAuthority(){
+ const box=$('md-auth-pending');if(!box)return;
+ if(!isOwner()){box.innerHTML='';return}
+ const list=read('pos_multi_device_local_v2',[]);
+ const pending=list.filter(d=>d&&String(d.status||'').toLowerCase()==='pending approval');
+ box.innerHTML=pending.map(d=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(d.id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(d.requestId||d.id||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(d.requestId||d.id||'')+'\')">DENY</button></div></div>').join('')||'<div class="md-auth-note">No pending device requests.</div>';
 }
 function renderAuthority(){
- ensurePanel();const panel=$('md-authority-panel');if(!panel)return;panel.classList.add('open');const own=isOwner();
- $('md-auth-badge').textContent=own?'DEVICE A • ADMIN':'DEVICE • '+(role()==='sales'?'SALES':'LINKED');
- $('md-auth-note').textContent=own?'Only Device A can approve/deny devices, generate the pairing QR, revoke devices and change window permissions. Device B/C never receive the owner credential.':'This device is linked by Device A. Admin actions are unavailable.';
+ ensurePanel();const panel=$('md-authority-panel');if(!panel)return;panel.classList.add('open');panel.style.display='block';const own=isOwner();
+ const badge=$('md-auth-badge');if(badge)badge.textContent=own?'DEVICE A • ADMIN':'DEVICE • '+(role()==='sales'?'SALES':'LINKED');
+ const note=$('md-auth-note');if(note)note.textContent=own?'Select window permissions before approving a device. Device A can approve/deny, save permissions and revoke linked devices. Device B/C never receive the owner credential.':'This device is linked by Device A. Admin actions are unavailable.';
  const box=$('md-auth-permissions');
- if(own){box.innerHTML=PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" data-owner-perm="'+x[0]+'"> '+x[1]+'</label>').join('');}
- else{box.innerHTML=PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" disabled '+(has(x[0])?'checked':'')+'> '+x[1]+'</label>').join('');}
+ const title=$('md-auth-permission-title');
+ if(own){
+   if(title)title.style.display='block';
+   box.innerHTML=PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" data-owner-perm="'+x[0]+'"> '+x[1]+'</label>').join('');
+ }else{
+   if(title)title.style.display='block';
+   box.innerHTML=PERMS.filter(x=>x[0]!=='multi_device').map(x=>'<label class="md-perm-row"><input type="checkbox" disabled '+(has(x[0])?'checked':'')+'> '+x[1]+'</label>').join('');
+ }
+ renderPendingAuthority();
  renderDevicePermissionCards();
  if(!own){const q=document.querySelector('#multi-device-window .md-card:first-child');if(q)q.style.display='none';const n=document.querySelector('#multi-device-window .md-note');if(n)n.style.display='none';}
 }
@@ -13032,3 +13050,69 @@ window.openMultiDeviceWindow=async function(){const r=oldRender?await oldRender.
 </script>
 </body>
 </html>
+
+<!-- MULTI-DEVICE AUTHORITY RENDER SAFETY PATCH -->
+
+<!-- MULTI-DEVICE AUTHORITY RENDER SAFETY PATCH -->
+<style id="md-authority-render-safety-css">
+#md-authority-panel{display:block!important;visibility:visible!important;opacity:1!important;overflow:visible!important;max-height:none!important}
+#md-auth-permissions,#md-auth-pending,#md-auth-device-list{display:block!important;visibility:visible!important;opacity:1!important;overflow:visible!important}
+#md-auth-permissions.md-perm-list{display:grid!important}
+#md-auth-device-list .md-perm-list{display:grid!important}
+.md-authority-fallback-row{display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);font-size:10px;font-weight:800;min-height:32px}
+.md-authority-fallback-row input{accent-color:var(--blue);width:15px;height:15px;flex:0 0 auto}
+.md-authority-fallback-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.md-authority-fallback-actions button{height:29px;border:0;border-radius:8px;padding:0 9px;background:var(--blue);color:#fff;font-size:9px;font-weight:900}
+.md-authority-fallback-actions button.secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+</style>
+<script id="md-authority-render-safety">
+(function(){
+'use strict';
+/* Only repairs the visibility/rendering of the authority controls. Existing app logic is untouched. */
+const FIX_PERMS=[['billing','Billing'],['calculator','Calculator'],['history','History'],['items','Item Database'],['analytics','Analytics'],['invoice','Invoice Studio'],['barcode','Barcode'],['notebook','Notebook'],['printer','Printer'],['cloud','Cloud Backup'],['settings','Settings']];
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const read=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v==null?f:v}catch(e){return f}};
+const owner=()=>!!localStorage.getItem('pos_multi_device_owner_token_v1');
+function renderFallback(){
+  const panel=$('md-authority-panel');
+  if(!panel)return;
+  panel.classList.add('open');panel.style.display='block';panel.style.visibility='visible';panel.style.opacity='1';panel.style.maxHeight='none';
+  const perms=$('md-auth-permissions');
+  if(perms && !perms.querySelector('input[type="checkbox"]')){
+    perms.innerHTML=FIX_PERMS.map(x=>'<label class="md-authority-fallback-row"><input type="checkbox" data-owner-perm="'+x[0]+'"'+(!owner()?' disabled':'')+'> '+x[1]+'</label>').join('');
+  }
+  const pending=$('md-auth-pending');
+  if(pending && !pending.querySelector('button')){
+    const list=read('pos_multi_device_local_v2',[]);
+    const rows=Array.isArray(list)?list.filter(d=>d&&String(d.status||'').toLowerCase()==='pending approval'):[];
+    pending.innerHTML=rows.length ? rows.map(d=>'<div class="md-pending-row"><div class="md-device-main"><div class="md-device-name">📲 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">Pending • '+esc(d.id||'')+'</div></div><div class="md-pending-actions"><button type="button" class="md-btn" onclick="window.multiDeviceApprove(\''+esc(d.requestId||d.id||'')+'\')">APPROVE</button><button type="button" class="md-device-remove" onclick="window.multiDeviceDeny(\''+esc(d.requestId||d.id||'')+'\')">DENY</button></div></div>').join('') : '<div class="md-auth-note">No pending device requests.</div>';
+  }
+  const deviceBox=$('md-auth-device-list');
+  if(deviceBox && !deviceBox.querySelector('input[data-dev-perm]')){
+    const list=read('pos_multi_device_local_v2',[]);
+    const linked=Array.isArray(list)?list.filter(d=>d&&String(d.status||'').toLowerCase()!=='pending approval'):[];
+    if(linked.length){
+      deviceBox.innerHTML=linked.map((d,i)=>{
+        const pp=Array.isArray(d.permissions)?d.permissions:[];
+        return '<div class="md-device-perm-card"><div class="md-device-perm-head"><div><div class="md-device-perm-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-perm-meta">'+esc(d.id||'')+' • '+esc(d.status||'Linked')+'</div></div><span class="md-auth-badge">SALES</span></div><div class="md-perm-list">'+FIX_PERMS.map(x=>'<label class="md-perm-row"><input type="checkbox" data-dev-perm="'+i+'" data-perm="'+x[0]+'" '+(pp.includes(x[0])?'checked':'')+'> '+x[1]+'</label>').join('')+'</div><div class="md-authority-fallback-actions"><button type="button" onclick="window.mdSaveDevicePermissions('+i+')">SAVE PERMISSIONS</button><button type="button" class="secondary" onclick="window.mdRevokeDevice('+i+')">REVOKE</button></div></div>';
+      }).join('');
+    }else if(!deviceBox.textContent.trim()){
+      deviceBox.innerHTML='<div class="md-auth-note" style="margin-top:8px">Approve a device first. Its window permissions will appear here.</div>';
+    }
+  }
+}
+function run(){
+  try{if(typeof window.ensurePanel==='function')window.ensurePanel()}catch(e){}
+  renderFallback();
+  try{if(typeof window.renderAuthority==='function')window.renderAuthority()}catch(e){renderFallback()}
+  renderFallback();
+}
+const oldOpen=window.openMultiDeviceWindow;
+if(oldOpen&&!oldOpen.__mdAuthorityRenderSafety){
+  const wrapped=async function(){const r=await oldOpen.apply(this,arguments);setTimeout(run,50);setTimeout(run,350);return r};
+  wrapped.__mdAuthorityRenderSafety=true;window.openMultiDeviceWindow=wrapped;
+}
+window.addEventListener('load',()=>{setTimeout(run,1000);setTimeout(run,1800)});
+})();
+</script>
