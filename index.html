@@ -12589,7 +12589,21 @@ function link(){const c=cfg();const base=(c.joinUrl||location.href.split('#')[0]
 function render(){const b=$('multi-device-list');if(!b)return;const a=devices();b.innerHTML=a.length?a.map((d,i)=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📱 '+esc(d.name||'Linked Device')+'</div><div class="md-device-meta">'+esc(d.status||'Linked')+' • '+esc(d.id||'')+'</div></div><button class="md-device-remove" onclick="multiDeviceRemove('+i+')">REMOVE</button></div>').join(''):'<div style="padding:16px;text-align:center;color:var(--muted);font-size:10px">Main device: '+esc(deviceId())+'<br>No approved linked devices yet.</div>';const auth=$('md-sales-auth-status');if(auth){auth.textContent=isSalesDevice()&&hasDeviceToken()?'🔐 SALES MODE • Device Token linked • No Google/Supabase user login required':'🔐 ADMIN / UNLINKED MODE';}}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function renderQr(){const b=$('multi-device-qr');if(!b)return;b.innerHTML='';const l=link();$('multi-device-link').textContent=l;try{if(typeof QRCode==='function'){new QRCode(b,{text:l,width:190,height:190,correctLevel:QRCode.CorrectLevel.M});status(apiReady()?'Cloud QR ready':'QR ready • configure cloud below',apiReady())}else status('QR library unavailable',false)}catch(e){status('Could not generate QR',false)}}
-async function ensureShop(){if(!apiReady()){status('Local mode • cloud not configured',false);return false}const owner=localStorage.getItem(OWNER_KEY);if(owner)return true;try{const d=await api('register_shop',{shopId:shop(),deviceId:deviceId(),deviceName:deviceName()});if(d.created&&d.ownerToken){localStorage.setItem(OWNER_KEY,d.ownerToken);status('Cloud shop created ✓',true);return true}status('Cloud shop exists • owner token is missing',false);return false}catch(e){status('Cloud setup: '+e.message,false);return false}}
+async function ensureShop(){if(!apiReady()){status('Local mode • cloud not configured',false);return false}
+const owner=localStorage.getItem(OWNER_KEY);
+if(owner){
+ try{
+  const check=await api('pending_requests',{shopId:shop(),ownerToken:owner});
+  if(check&&check.ok!==false){return true}
+ }catch(e){}
+ localStorage.removeItem(OWNER_KEY);
+ status('Admin token expired or invalid • recovery required',false);
+}
+try{
+ const d=await api('register_shop',{shopId:shop(),deviceId:deviceId(),deviceName:deviceName()});
+ if(d.created&&d.ownerToken){localStorage.setItem(OWNER_KEY,d.ownerToken);status('Cloud shop created ✓',true);return true}
+ status('Cloud shop exists • owner token is missing',false);return false
+}catch(e){status('Cloud setup: '+e.message,false);return false}}
 async function pushPending(){const token=localStorage.getItem(TOKEN_KEY);if(!token)return;const q=queue();if(!q.length)return;try{const d=await api('push',{deviceToken:token,events:q.slice(0,100)});if(d.ok){
  let remaining=q;
  const acceptedIds=Array.isArray(d.acceptedEventIds)?new Set(d.acceptedEventIds.map(String)):null;
@@ -12629,10 +12643,14 @@ window.multiDeviceOwnerRecovery=async function(){
 };
 window.multiDeviceSaveConfig=async function(){saveCfg();renderQr();if(await ensureShop()){await refreshOwnerData();await pushPending();await pull()}else render()};
 window.multiDeviceAuthStatus=function(){return {role:role(),authMode:owner()?'owner_token':(hasDeviceToken()?'device_token':'none'),deviceId:deviceId(),deviceTokenLinked:hasDeviceToken(),ownerLinked:owner()};};
-async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old){old.id=r.device_id;old.name=r.device_name;old.status='Pending approval';}else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority()}catch(e){}}
+async function refreshOwnerData(){const owner=localStorage.getItem(OWNER_KEY);if(!owner){status('Admin token missing • use RECOVER ADMIN TOKEN',false);return;}try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old){old.id=r.device_id;old.name=r.device_name;old.status='Pending approval';}else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id});}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority()}catch(e){}}
 window.multiDeviceApprove=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return alert('Owner token is not available on this device.');try{await api('approve_request',{shopId:shop(),ownerToken:owner,requestId,role:'sales'});status('Device approved ✓ • SALES uses Device Token only',true);await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority();}catch(e){alert(e.message)}};
 window.multiDeviceDeny=async function(requestId){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{await api('deny_request',{shopId:shop(),ownerToken:owner,requestId});await refreshOwnerData();if(typeof renderAuthority==='function')renderAuthority()}catch(e){alert(e.message)}};
-async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner)return;try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old)old.status='Pending approval';else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){status('Owner check failed',false)}}
+async function ownerRefresh(){const owner=localStorage.getItem(OWNER_KEY);if(!owner){status('Admin token missing • use RECOVER ADMIN TOKEN',false);if(typeof window.multiDeviceOwnerRecovery==='function')setTimeout(()=>window.multiDeviceOwnerRecovery(),0);return;}try{const d=await api('pending_requests',{shopId:shop(),ownerToken:owner});const a=devices();for(const r of d.requests||[]){const old=a.find(x=>x.requestId===r.id);if(old)old.status='Pending approval';else a.push({id:r.device_id,name:r.device_name,status:'Pending approval',requestId:r.id})}saveDevices(a);render();if(typeof renderAuthority==='function')renderAuthority();const box=$('multi-device-approval-list');if(box)box.innerHTML=(d.requests||[]).map(r=>'<div class="md-device"><div class="md-device-main"><div class="md-device-name">📲 '+esc(r.device_name)+'</div><div class="md-device-meta">Pending • '+esc(r.device_id)+'</div></div><button class="md-btn" onclick="multiDeviceApprove(\''+esc(r.id)+'\')">APPROVE</button><button class="md-device-remove" onclick="multiDeviceDeny(\''+esc(r.id)+'\')">DENY</button></div>').join('')||'<div style="padding:10px;color:var(--muted);font-size:10px">No pending requests.</div>'}catch(e){
+ const msg=String(e&&e.message||e||'');
+ if(/unauthor|invalid.*token|token.*invalid|owner/i.test(msg)){localStorage.removeItem(OWNER_KEY);status('Admin token invalid • use RECOVER ADMIN TOKEN',false);if(typeof window.multiDeviceOwnerRecovery==='function')setTimeout(()=>window.multiDeviceOwnerRecovery(),0);}
+ else status('Owner check failed',false)
+}}
 const SETUP_SQL = `create table if not exists public.pos_sync_shops(id uuid primary key default gen_random_uuid(),shop_id text not null unique,owner_token_hash text not null,owner_device_id text not null,owner_device_name text not null default 'Main Device',created_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_devices(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',device_token_hash text not null,permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',status text not null default 'approved' check(status in('approved','revoked')),approved_at timestamptz,last_seen_at timestamptz,created_at timestamptz not null default now(),unique(shop_id,device_id),unique(device_token_hash));\ncreate table if not exists public.pos_sync_pair_requests(id uuid primary key default gen_random_uuid(),shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,device_id text not null,device_name text not null default 'Linked Device',status text not null default 'pending' check(status in('pending','approved','denied')),permissions jsonb not null default '[]'::jsonb,role text not null default 'sales',device_token text,created_at timestamptz not null default now(),updated_at timestamptz not null default now());\ncreate table if not exists public.pos_sync_events(seq bigint generated always as identity primary key,shop_id text not null references public.pos_sync_shops(shop_id) on delete cascade,event_id text not null,device_id text not null,event_type text not null,entity_id text not null,payload jsonb not null default '{}'::jsonb,client_time timestamptz,created_at timestamptz not null default now(),unique(shop_id,event_id));\ncreate index if not exists pos_sync_events_shop_seq_idx on public.pos_sync_events(shop_id,seq);\ncreate index if not exists pos_sync_pair_requests_pending_idx on public.pos_sync_pair_requests(shop_id,status,created_at);\nalter table public.pos_sync_shops enable row level security; alter table public.pos_sync_devices enable row level security; alter table public.pos_sync_pair_requests enable row level security; alter table public.pos_sync_events enable row level security;\nrevoke all on public.pos_sync_shops from anon,authenticated; revoke all on public.pos_sync_devices from anon,authenticated; revoke all on public.pos_sync_pair_requests from anon,authenticated; revoke all on public.pos_sync_events from anon,authenticated;
 create extension if not exists pgcrypto;
 alter table public.pos_sync_shops add column if not exists owner_last_seen_at timestamptz;
@@ -13075,7 +13093,7 @@ window.openMultiDeviceWindow=async function(){const r=oldRender?await oldRender.
 (function(){'use strict';
  const OWNER='pos_multi_device_owner_token_v1',TOKEN='pos_multi_device_device_token_v1';
  const $=id=>document.getElementById(id);
- function isA(){return !!localStorage.getItem(OWNER)||!localStorage.getItem(TOKEN)}
+ function isA(){return !!localStorage.getItem(OWNER)}
  function ensure(){try{
   const panel=$('md-authority-panel');
   if(panel&&isA()){
@@ -13091,8 +13109,6 @@ window.openMultiDeviceWindow=async function(){const r=oldRender?await oldRender.
  window.addEventListener('focus',()=>{ensure();refresh()});
 })();
 </script>
-</body>
-</html>
 
 <!-- MULTI-DEVICE AUTHORITY RENDER SAFETY PATCH -->
 
@@ -13159,3 +13175,5 @@ if(oldOpen&&!oldOpen.__mdAuthorityRenderSafety){
 window.addEventListener('load',()=>{setTimeout(run,1000);setTimeout(run,1800)});
 })();
 </script>
+</body>
+</html>
